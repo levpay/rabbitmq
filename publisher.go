@@ -8,9 +8,9 @@ import (
 	"github.com/streadway/amqp"
 )
 
-func Publisher(exchangeName string, queueSuffixName string, body []byte) (err error) {
+// Publisher adds a message in exchange.
+func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) (err error) {
 	exchangeFullName := GetExchangeFullName(exchangeName)
-	queueFullName := GetQueueFullName(exchangeName, queueSuffixName)
 
 	log.Debugln("Dialing ", URL)
 	connection, err := amqp.Dial(URL)
@@ -36,8 +36,8 @@ func Publisher(exchangeName string, queueSuffixName string, body []byte) (err er
 		false,            // auto-deleted
 		false,            // internal
 		false,            // noWait
-		nil,              // arguments
-	)
+		nil)              // arguments
+
 	if err != nil {
 		log.Errorln("Failed to declare exchange", err)
 		return
@@ -54,30 +54,10 @@ func Publisher(exchangeName string, queueSuffixName string, body []byte) (err er
 
 	defer confirmOne(confirms)
 
-	queue, err := channel.QueueDeclare(
-		queueFullName, // name
-		true,          // durable
-		false,         // delete when unused
-		false,         // exclusive
-		false,         // no-wait
-		nil,           // arguments
-	)
+	defaultQueueFullName := GetQueueFullName(exchangeName, defaultQueueSuffixName)
+	err = createDefaultQueue(channel, exchangeFullName, defaultQueueFullName)
 	if err != nil {
-		log.Errorln("Failed to declare a queue", err)
-		return
-	}
-
-	bindingKey := fmt.Sprintf("%s-key", queue.Name)
-	log.Debugln("Declared Queue (", queue.Name, " ", queue.Messages, " messages, ", queue.Consumers, " consumers), binding to Exchange (key ", bindingKey, ")")
-	err = channel.QueueBind(
-		queue.Name,       // name of the queue
-		bindingKey,       // bindingKey
-		exchangeFullName, // sourceExchange
-		false,            // noWait
-		nil,              // arguments
-	)
-	if err != nil {
-		log.Errorln("Failed to bind a queue", err)
+		log.Errorln("Failed to create default queue", err)
 		return
 	}
 
@@ -92,12 +72,43 @@ func Publisher(exchangeName string, queueSuffixName string, body []byte) (err er
 			ContentType:     "application/json",
 			ContentEncoding: "UTF-8",
 			Body:            body,
-			DeliveryMode:    2, // 1=non-persistent, 2=persistent
-			Priority:        0, // 0-9
-		})
+			DeliveryMode:    2,  // 1=non-persistent, 2=persistent
+			Priority:        0}) // 0-9
+
 	if err != nil {
 		log.Errorln("Failed to publish a message", err)
 		return
+	}
+
+	return
+}
+
+func createDefaultQueue(channel *amqp.Channel, exchangeFullName string, defaultQueueName string) (err error) {
+
+	queue, err := channel.QueueDeclare(
+		defaultQueueName, // name
+		true,             // durable
+		false,            // delete when unused
+		false,            // exclusive
+		false,            // no-wait
+		nil)              // arguments
+
+	if err != nil {
+		log.Errorln("Failed to declare a queue", err)
+		return
+	}
+
+	bindingKey := fmt.Sprintf("%s-key", queue.Name)
+	log.Debugln("Declared Queue (", queue.Name, " ", queue.Messages, " messages, ", queue.Consumers, " consumers), binding to Exchange (key ", bindingKey, ")")
+	err = channel.QueueBind(
+		queue.Name,       // name of the queue
+		bindingKey,       // bindingKey
+		exchangeFullName, // sourceExchange
+		false,            // noWait
+		nil)              // arguments
+
+	if err != nil {
+		log.Errorln("Failed to bind a queue", err)
 	}
 
 	return
