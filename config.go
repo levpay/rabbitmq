@@ -3,28 +3,33 @@ package rabbitmq
 import (
 	"fmt"
 	"os"
-	"strconv"
 
-	"github.com/joho/godotenv"
 	"github.com/nuveo/log"
 )
 
-// Global variables
-var (
+type config struct {
 	URL string
-	env string
-)
+	Env string
+}
 
-func init() {
-	testingEnv()
+// Config contains configs infos
+var Config *config
 
-	URL = os.Getenv("CLOUDAMQP_URL")
-	if URL == "" {
+// Load sets the initial settings.
+func Load() {
+
+	if Config != nil {
+		return
+	}
+	Config = &config{
+		URL: os.Getenv("CLOUDAMQP_URL"),
+		Env: os.Getenv("ENV")}
+
+	if Config.URL == "" {
 		log.Fatal("CLOUDAMQP_URL is missing in the environments variables")
 	}
 
-	env = os.Getenv("ENV")
-	if env == "" {
+	if Config.Env == "" {
 		log.Fatal("ENV is missing in the environments variables")
 	}
 }
@@ -32,7 +37,7 @@ func init() {
 // GetQueueFullName returns the queue name referencing the exchange and the environment
 func GetQueueFullName(exchangeName string, queueSuffixName string) (queueFullName string) {
 
-	queueFullName = fmt.Sprintf("EXCHANGE_%s-QUEUE_%s-ENV_%s", exchangeName, queueSuffixName, env)
+	queueFullName = fmt.Sprintf("EXCHANGE_%s-QUEUE_%s-ENV_%s", exchangeName, queueSuffixName, Config.Env)
 
 	return
 }
@@ -40,7 +45,7 @@ func GetQueueFullName(exchangeName string, queueSuffixName string) (queueFullNam
 // GetExchangeFullName returns the exchange name referencing the environment
 func GetExchangeFullName(exchangeName string) (exchangeFullName string) {
 
-	exchangeFullName = fmt.Sprintf("EXCHANGE_%s-ENV_%s", exchangeName, env)
+	exchangeFullName = fmt.Sprintf("EXCHANGE_%s-ENV_%s", exchangeName, Config.Env)
 
 	return
 }
@@ -48,42 +53,7 @@ func GetExchangeFullName(exchangeName string) (exchangeFullName string) {
 // GetConsumerTag returns the name of the consumer referencing the name of the exchange, queue, and environment
 func GetConsumerTag(exchangeName string, queueSuffixName string, consumerSuffixTag string) (consumerTag string) {
 
-	consumerTag = fmt.Sprintf("CONSUMER_%s-EXCHANGE_%s-QUEUE_%s-ENV_%s", consumerSuffixTag, exchangeName, queueSuffixName, env)
+	consumerTag = fmt.Sprintf("CONSUMER_%s-EXCHANGE_%s-QUEUE_%s-ENV_%s", consumerSuffixTag, exchangeName, queueSuffixName, Config.Env)
 
 	return
-}
-
-func testingEnv() {
-	testingS := os.Getenv("TESTING")
-
-	if testingS == "" {
-		return
-	}
-
-	testing, err := strconv.ParseBool(testingS)
-	if err != nil {
-		log.Fatal("Failed to convert TESTING value", err)
-	}
-
-	if !testing {
-		return
-	}
-
-	err = godotenv.Load(".env.testing")
-	if err != nil {
-		log.Fatal("Error loading .env.testing file")
-	}
-
-	debugS := os.Getenv("DEBUG")
-
-	if debugS != "" {
-		debug, err := strconv.ParseBool(debugS)
-		if err != nil {
-			log.Errorln("Failed to convert DEBUG value", err)
-			return
-		}
-
-		log.DebugMode = debug
-	}
-
 }
