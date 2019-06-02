@@ -8,9 +8,10 @@ import (
 	"github.com/streadway/amqp"
 )
 
-type convert func([]byte) error
+type function func([]byte) error
 
-func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag string, actionFunction convert) (err error) {
+// Consumer associates a function to receive messages from the queue.
+func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag string, actionFunction function) (err error) {
 	exchangeFullName := GetExchangeFullName(exchangeName)
 	queueFullName := GetQueueFullName(exchangeName, queueSuffixName)
 	consumerTag := GetConsumerTag(exchangeName, queueSuffixName, consumerSuffixTag)
@@ -100,7 +101,7 @@ func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag str
 	return
 }
 
-func handle(deliveries <-chan amqp.Delivery, actionFunction convert) (err error) {
+func handle(deliveries <-chan amqp.Delivery, actionFunction function) (err error) {
 	for d := range deliveries {
 		err := actionFunction(d.Body)
 		if err != nil {
