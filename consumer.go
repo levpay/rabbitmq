@@ -16,8 +16,8 @@ func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag str
 	queueFullName := GetQueueFullName(exchangeName, queueSuffixName)
 	consumerTag := GetConsumerTag(exchangeName, queueSuffixName, consumerSuffixTag)
 
-	log.Debugln("dialing", URL)
-	conn, err := amqp.Dial(URL)
+	log.Debugln("dialing", Config.URL)
+	conn, err := amqp.Dial(Config.URL)
 	if err != nil {
 		log.Errorln("Failed to connect to RabbitMQ", err)
 		return
