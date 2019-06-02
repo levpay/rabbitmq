@@ -12,8 +12,8 @@ import (
 func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) (err error) {
 	exchangeFullName := GetExchangeFullName(exchangeName)
 
-	log.Debugln("Dialing ", URL)
-	connection, err := amqp.Dial(URL)
+	log.Debugln("Dialing ", Config.URL)
+	connection, err := amqp.Dial(Config.URL)
 	if err != nil {
 		log.Errorln("Failed to connect to RabbitMQ", err)
 		return
