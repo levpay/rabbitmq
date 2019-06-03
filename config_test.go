@@ -45,7 +45,7 @@ func TestGetQueueFullName(t *testing.T) {
 
 		result := rabbitmq.GetQueueFullName("exchangeX", "rangeY")
 
-		expected := "EXCHANGE_exchangeX-QUEUE_rangeY-ENV_testing"
+		expected := "ENV_testing-EXCHANGE_exchangeX-QUEUE_rangeY"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}
@@ -58,7 +58,7 @@ func TestGetExchangeFullName(t *testing.T) {
 
 		result := rabbitmq.GetExchangeFullName("exchangeX")
 
-		expected := "EXCHANGE_exchangeX-ENV_testing"
+		expected := "ENV_testing-EXCHANGE_exchangeX"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}
@@ -71,7 +71,7 @@ func TestGetConsumerTag(t *testing.T) {
 
 		result := rabbitmq.GetConsumerTag("exchangeX", "rangeY", "consumerZ")
 
-		expected := "CONSUMER_consumerZ-EXCHANGE_exchangeX-QUEUE_rangeY-ENV_testing"
+		expected := "ENV_testing-EXCHANGE_exchangeX-QUEUE_rangeY-CONSUMER_consumerZ"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}

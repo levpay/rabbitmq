@@ -15,7 +15,7 @@ type config struct {
 // Config contains configs infos
 var Config *config
 
-// Load sets the initial settings.
+// Load sets the initial settings
 func Load() {
 
 	if Config != nil {
@@ -37,7 +37,7 @@ func Load() {
 // GetQueueFullName returns the queue name referencing the exchange and the environment
 func GetQueueFullName(exchangeName string, queueSuffixName string) (queueFullName string) {
 
-	queueFullName = fmt.Sprintf("EXCHANGE_%s-QUEUE_%s-ENV_%s", exchangeName, queueSuffixName, Config.Env)
+	queueFullName = fmt.Sprintf("ENV_%s-EXCHANGE_%s-QUEUE_%s", Config.Env, exchangeName, queueSuffixName)
 
 	return
 }
@@ -45,7 +45,7 @@ func GetQueueFullName(exchangeName string, queueSuffixName string) (queueFullNam
 // GetExchangeFullName returns the exchange name referencing the environment
 func GetExchangeFullName(exchangeName string) (exchangeFullName string) {
 
-	exchangeFullName = fmt.Sprintf("EXCHANGE_%s-ENV_%s", exchangeName, Config.Env)
+	exchangeFullName = fmt.Sprintf("ENV_%s-EXCHANGE_%s", Config.Env, exchangeName)
 
 	return
 }
@@ -53,7 +53,7 @@ func GetExchangeFullName(exchangeName string) (exchangeFullName string) {
 // GetConsumerTag returns the name of the consumer referencing the name of the exchange, queue, and environment
 func GetConsumerTag(exchangeName string, queueSuffixName string, consumerSuffixTag string) (consumerTag string) {
 
-	consumerTag = fmt.Sprintf("CONSUMER_%s-EXCHANGE_%s-QUEUE_%s-ENV_%s", consumerSuffixTag, exchangeName, queueSuffixName, Config.Env)
+	consumerTag = fmt.Sprintf("ENV_%s-EXCHANGE_%s-QUEUE_%s-CONSUMER_%s", Config.Env, exchangeName, queueSuffixName, consumerSuffixTag)
 
 	return
 }
