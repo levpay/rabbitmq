@@ -8,14 +8,30 @@ import (
 	"github.com/streadway/amqp"
 )
 
-// Publisher adds a message in exchange.
+// Publisher adds a message in the exchange.
 func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) (err error) {
-	exchangeFullName := GetExchangeFullName(exchangeName)
+	return PublisherWithDelay(exchangeName, defaultQueueSuffixName, "", body)
+}
+
+//PublisherWithDelay adds a message in the waiting exchange.
+func PublisherWithDelay(exchangeName string, defaultQueueSuffixName string, delay string, body []byte) (err error) {
+
+	wait := true
+	if delay == "" || delay == "0" {
+		wait = false
+	}
+
+	typeName := "work"
+	if wait {
+		typeName = fmt.Sprintf("wait_%s", delay)
+	}
+
+	exchangeFullName := GetExchangeFullName(exchangeName, typeName)
 
 	log.Debugln("Dialing ", Config.URL)
 	connection, err := amqp.Dial(Config.URL)
 	if err != nil {
-		log.Errorln("Failed to connect to RabbitMQ", err)
+		log.Errorln("Failed to connect to RabbitMQ: ", err)
 		return
 	}
 	defer connection.Close()
@@ -23,7 +39,7 @@ func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) 
 	log.Debugln("Got connection, getting channel")
 	channel, err := connection.Channel()
 	if err != nil {
-		log.Errorln("Failed to open a channel", err)
+		log.Errorln("Failed to open a channel: ", err)
 		return
 	}
 	defer channel.Close()
@@ -39,14 +55,14 @@ func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) 
 		nil)              // arguments
 
 	if err != nil {
-		log.Errorln("Failed to declare exchange", err)
+		log.Errorln("Failed to declare exchange: ", err)
 		return
 	}
 
 	log.Debugln("Enabling publishing confirms.")
 	err = channel.Confirm(false)
 	if err != nil {
-		log.Errorln("Channel could not be put into confirm mode", err)
+		log.Errorln("Channel could not be put into confirm mode: ", err)
 		return
 	}
 
@@ -54,14 +70,14 @@ func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) 
 
 	defer confirmOne(confirms)
 
-	defaultQueueFullName := GetQueueFullName(exchangeName, defaultQueueSuffixName)
-	err = createDefaultQueue(channel, exchangeFullName, defaultQueueFullName)
+	defaultQueueFullName := GetQueueFullName(exchangeName, defaultQueueSuffixName, typeName)
+	err = createDefaultQueue(channel, exchangeName, exchangeFullName, defaultQueueFullName, wait)
 	if err != nil {
-		log.Errorln("Failed to create default queue", err)
+		log.Errorln("Failed to create default queue: ", err)
 		return
 	}
 
-	log.Debugln("Declared exchange, publishing ", len(body), "  body ", string(body))
+	log.Debugln("Declared exchange [", exchangeFullName, "], publishing ", len(body), "  body ", string(body))
 	err = channel.Publish(
 		exchangeFullName, // exchange
 		"",               // routing key
@@ -72,18 +88,25 @@ func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) 
 			ContentType:     "application/json",
 			ContentEncoding: "UTF-8",
 			Body:            body,
-			DeliveryMode:    2,  // 1=non-persistent, 2=persistent
+			DeliveryMode:    amqp.Persistent,
+			Expiration:      delay,
 			Priority:        0}) // 0-9
 
 	if err != nil {
-		log.Errorln("Failed to publish a message", err)
+		log.Errorln("Failed to publish a message: ", err)
 		return
 	}
 
 	return
 }
 
-func createDefaultQueue(channel *amqp.Channel, exchangeFullName string, defaultQueueName string) (err error) {
+func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFullName string, defaultQueueName string, wait bool) (err error) {
+
+	var args amqp.Table
+	if wait {
+		args = make(amqp.Table)
+		args["x-dead-letter-exchange"] = GetExchangeFullName(exchangeName, "work")
+	}
 
 	queue, err := channel.QueueDeclare(
 		defaultQueueName, // name
@@ -91,10 +114,10 @@ func createDefaultQueue(channel *amqp.Channel, exchangeFullName string, defaultQ
 		false,            // delete when unused
 		false,            // exclusive
 		false,            // no-wait
-		nil)              // arguments
+		args)             // arguments
 
 	if err != nil {
-		log.Errorln("Failed to declare a queue", err)
+		log.Errorln("Failed to declare a queue: ", err)
 		return
 	}
 
@@ -108,7 +131,7 @@ func createDefaultQueue(channel *amqp.Channel, exchangeFullName string, defaultQ
 		nil)              // arguments
 
 	if err != nil {
-		log.Errorln("Failed to bind a queue", err)
+		log.Errorln("Failed to bind a queue: ", err)
 	}
 
 	return

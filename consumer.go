@@ -12,14 +12,14 @@ type function func([]byte) error
 
 // Consumer associates a function to receive messages from the queue.
 func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag string, actionFunction function) (err error) {
-	exchangeFullName := GetExchangeFullName(exchangeName)
-	queueFullName := GetQueueFullName(exchangeName, queueSuffixName)
+	exchangeFullName := GetExchangeFullName(exchangeName, "work")
+	queueFullName := GetQueueFullName(exchangeName, queueSuffixName, "work")
 	consumerTag := GetConsumerTag(exchangeName, queueSuffixName, consumerSuffixTag)
 
 	log.Debugln("dialing", Config.URL)
 	conn, err := amqp.Dial(Config.URL)
 	if err != nil {
-		log.Errorln("Failed to connect to RabbitMQ", err)
+		log.Errorln("Failed to connect to RabbitMQ: ", err)
 		return
 	}
 	go func() {
@@ -30,7 +30,7 @@ func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag str
 	log.Debugln("Got Connection, getting Channel")
 	channel, err := conn.Channel()
 	if err != nil {
-		log.Errorln("Failed to open a channel", err)
+		log.Errorln("Failed to open a channel: ", err)
 		return
 	}
 	defer channel.Close()
@@ -46,7 +46,7 @@ func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag str
 		nil,              // arguments
 	)
 	if err != nil {
-		log.Errorln("Failed to declare exchange", err)
+		log.Errorln("Failed to declare exchange: ", err)
 		return
 	}
 
@@ -59,7 +59,7 @@ func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag str
 		nil,           // arguments
 	)
 	if err != nil {
-		log.Errorln("Failed to declare a queue", err)
+		log.Errorln("Failed to declare a queue: ", err)
 		return
 	}
 
@@ -74,7 +74,7 @@ func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag str
 		nil,              // arguments
 	)
 	if err != nil {
-		log.Errorln("Failed to bind a queue", err)
+		log.Errorln("Failed to bind a queue: ", err)
 		return
 	}
 
@@ -89,7 +89,7 @@ func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag str
 		nil,         // args
 	)
 	if err != nil {
-		log.Errorln("Failed to register a consumer", err)
+		log.Errorln("Failed to register a consumer: ", err)
 		return
 	}
 
@@ -105,12 +105,12 @@ func handle(deliveries <-chan amqp.Delivery, actionFunction function) (err error
 	for d := range deliveries {
 		err := actionFunction(d.Body)
 		if err != nil {
-			log.Errorln("Failed to deliver the body", err)
+			log.Errorln("Failed to deliver the body: ", err)
 		}
 
 		if err == nil {
 			d.Ack(false)
-			log.Println("Committed")
+			log.Debugln("Committed")
 		}
 	}
 
