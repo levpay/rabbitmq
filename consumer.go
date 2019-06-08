@@ -10,11 +10,16 @@ import (
 
 type function func([]byte) error
 
+// SimpleConsumer is a simple version of the Consumer that associates a function to receive messages from the queue
+func SimpleConsumer(exchangeName string, typeName string, actionFunction function) (err error) {
+	return Consumer(exchangeName, "", typeName, "", actionFunction)
+}
+
 // Consumer associates a function to receive messages from the queue.
-func Consumer(exchangeName string, queueSuffixName string, consumerSuffixTag string, actionFunction function) (err error) {
-	exchangeFullName := GetExchangeFullName(exchangeName, "work")
-	queueFullName := GetQueueFullName(exchangeName, queueSuffixName, "work")
-	consumerTag := GetConsumerTag(exchangeName, queueSuffixName, consumerSuffixTag)
+func Consumer(exchangeName string, queueSuffixName string, typeName string, consumerSuffixTag string, actionFunction function) (err error) {
+	exchangeFullName := GetExchangeFullName(exchangeName, typeName)
+	queueFullName := GetQueueFullName(exchangeName, queueSuffixName, typeName)
+	consumerTag := GetConsumerTag(exchangeName, queueSuffixName, "")
 
 	log.Debugln("dialing", Config.URL)
 	conn, err := amqp.Dial(Config.URL)

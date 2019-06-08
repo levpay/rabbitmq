@@ -35,13 +35,26 @@ func testingEnv() {
 	}
 }
 
+func TestGetQueueFullNameWithReturn(t *testing.T) {
+
+	t.Run("Test GetQueueFullName method with success", func(t *testing.T) {
+
+		result := rabbitmq.GetQueueFullName("exchangeX", "rangeY", "ERROR")
+
+		expected := "testing.exchangeX.rangeY-queue:ERROR"
+		if expected != result {
+			t.Fatalf("Expect %s, got: %s", expected, result)
+		}
+	})
+}
+
 func TestGetQueueFullName(t *testing.T) {
 
 	t.Run("Test GetQueueFullName method with success", func(t *testing.T) {
 
-		result := rabbitmq.GetQueueFullName("exchangeX", "work", "rangeY")
+		result := rabbitmq.GetQueueFullName("exchangeX", "rangeY", "")
 
-		expected := "testing.exchangeX.work.rangeY-queue"
+		expected := "testing.exchangeX.rangeY-queue"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}
@@ -52,9 +65,9 @@ func TestGetExchangeFullName(t *testing.T) {
 
 	t.Run("Test GetExchangeFullName method with success", func(t *testing.T) {
 
-		result := rabbitmq.GetExchangeFullName("exchangeX", "wait")
+		result := rabbitmq.GetExchangeFullName("exchangeX", "WAIT_10000ms")
 
-		expected := "testing.exchangeX.wait-exchange"
+		expected := "testing.exchangeX-exchange:WAIT_10000ms"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}
@@ -65,9 +78,9 @@ func TestGetConsumerTag(t *testing.T) {
 
 	t.Run("Test GetConsumerTag method with success", func(t *testing.T) {
 
-		result := rabbitmq.GetConsumerTag("exchangeX", "rangeY", "consumerZ")
+		result := rabbitmq.GetConsumerTag("exchangeX", "", "consumerZ")
 
-		expected := "testing.exchangeX..rangeY.consumerZ-consumer"
+		expected := "testing.exchangeX..master.consumerZ-consumer"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}

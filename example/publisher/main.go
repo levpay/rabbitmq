@@ -11,7 +11,6 @@ import (
 
 type test struct {
 	UUID    uuid.UUID
-	Retrier int
 	Attempt int
 }
 
@@ -21,12 +20,11 @@ func main() {
 
 	u, _ := uuid.NewUUID()
 	t := test{
-		UUID:    u,
-		Retrier: 3}
+		UUID: u}
 
-	log.Println(fmt.Sprintf("\n\nPublishing a msg %s with %d retrier.\n", t.UUID, t.Retrier))
+	log.Println(fmt.Sprintf("\n\nPublishing a msg %s.\n", t.UUID))
 
 	body, _ := json.Marshal(t)
 
-	rabbitmq.Publisher("example", "test", body)
+	rabbitmq.SimplePublisher("example", body)
 }

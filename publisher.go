@@ -8,22 +8,33 @@ import (
 	"github.com/streadway/amqp"
 )
 
+// SimplePublisher adds a message in the exchange without options.
+func SimplePublisher(exchangeName string, body []byte) (err error) {
+	return publisherBase(exchangeName, "", "", body)
+}
+
 // Publisher adds a message in the exchange.
-func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) (err error) {
-	return PublisherWithDelay(exchangeName, defaultQueueSuffixName, "", body)
+func Publisher(exchangeName string, typeName string, body []byte) (err error) {
+	return publisherBase(exchangeName, typeName, "", body)
 }
 
 //PublisherWithDelay adds a message in the waiting exchange.
-func PublisherWithDelay(exchangeName string, defaultQueueSuffixName string, delay string, body []byte) (err error) {
+func PublisherWithDelay(exchangeName string, delay string, body []byte) (err error) {
+	if delay == "" {
+		delay = "10000"
+	}
+	return publisherBase(exchangeName, "", delay, body)
+}
+
+func publisherBase(exchangeName string, typeName string, delay string, body []byte) (err error) {
 
 	wait := true
 	if delay == "" || delay == "0" {
 		wait = false
 	}
 
-	typeName := "work"
-	if wait {
-		typeName = fmt.Sprintf("wait_%s", delay)
+	if delay != "" {
+		typeName = fmt.Sprintf("WAIT_%s", delay)
 	}
 
 	exchangeFullName := GetExchangeFullName(exchangeName, typeName)
@@ -44,7 +55,7 @@ func PublisherWithDelay(exchangeName string, defaultQueueSuffixName string, dela
 	}
 	defer channel.Close()
 
-	log.Debugln("Got Channel, declaring Exchange", exchangeFullName)
+	log.Debugln("Got Channel, declaring Exchange: ", exchangeFullName)
 	err = channel.ExchangeDeclare(
 		exchangeFullName, // name
 		"fanout",         // type
@@ -70,8 +81,8 @@ func PublisherWithDelay(exchangeName string, defaultQueueSuffixName string, dela
 
 	defer confirmOne(confirms)
 
-	defaultQueueFullName := GetQueueFullName(exchangeName, defaultQueueSuffixName, typeName)
-	err = createDefaultQueue(channel, exchangeName, exchangeFullName, defaultQueueFullName, wait)
+	defaultQueueFullName := GetQueueFullName(exchangeName, "", typeName)
+	err = createDefaultQueue(channel, exchangeName, exchangeFullName, defaultQueueFullName, typeName, wait)
 	if err != nil {
 		log.Errorln("Failed to create default queue: ", err)
 		return
@@ -100,12 +111,12 @@ func PublisherWithDelay(exchangeName string, defaultQueueSuffixName string, dela
 	return
 }
 
-func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFullName string, defaultQueueName string, wait bool) (err error) {
+func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFullName string, defaultQueueName string, typeName string, wait bool) (err error) {
 
 	var args amqp.Table
 	if wait {
 		args = make(amqp.Table)
-		args["x-dead-letter-exchange"] = GetExchangeFullName(exchangeName, "work")
+		args["x-dead-letter-exchange"] = GetExchangeFullName(exchangeName, "")
 	}
 
 	queue, err := channel.QueueDeclare(
