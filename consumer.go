@@ -122,7 +122,7 @@ func handle(deliveries <-chan amqp.Delivery, actionFunction function) (err error
 		}
 	}
 
-	log.Debugln("handle: deliveries channel closed")
+	log.Errorln("handle: deliveries channel closed")
 
 	return
 }
