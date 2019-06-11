@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/levpay/rabbitmq"
@@ -15,22 +13,12 @@ type testStruct struct {
 	Attempt int
 }
 
-func convertJSONToTest(body string) (t *testStruct) {
-	dec := json.NewDecoder(strings.NewReader(body))
-	for {
-		if err := dec.Decode(&t); err == io.EOF {
-			break
-		}
-	}
-	return
-}
-
 func processMSG(b []byte) (err error) {
 
-	bodyS := string(b)
-	log.Println("Received a msg: ", string(bodyS))
+	log.Println("Received a msg: ", string(b))
 
-	test := convertJSONToTest(bodyS)
+	var test testStruct
+	rabbitmq.DecodeBody(b, &test)
 
 	test.Attempt++
 
