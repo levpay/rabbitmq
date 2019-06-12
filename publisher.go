@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/nuveo/log"
 
@@ -10,31 +11,28 @@ import (
 
 // SimplePublisher adds a message in the exchange without options.
 func SimplePublisher(exchangeName string, body []byte) (err error) {
-	return publisherBase(exchangeName, "", "", body)
+	return publisherBase(exchangeName, "", 0, body)
 }
 
 // Publisher adds a message in the exchange.
 func Publisher(exchangeName string, typeName string, body []byte) (err error) {
-	return publisherBase(exchangeName, typeName, "", body)
+	return publisherBase(exchangeName, typeName, 0, body)
 }
 
 //PublisherWithDelay adds a message in the waiting exchange.
-func PublisherWithDelay(exchangeName string, delay string, body []byte) (err error) {
-	if delay == "" {
-		delay = "10000"
+func PublisherWithDelay(exchangeName string, delay int64, body []byte) (err error) {
+	if delay == 0 {
+		delay = 10000
 	}
 	return publisherBase(exchangeName, "", delay, body)
 }
 
-func publisherBase(exchangeName string, typeName string, delay string, body []byte) (err error) {
+func publisherBase(exchangeName string, typeName string, delay int64, body []byte) (err error) {
 
-	wait := true
-	if delay == "" || delay == "0" {
-		wait = false
-	}
-
-	if delay != "" {
-		typeName = fmt.Sprintf("WAIT_%s", delay)
+	wait := false
+	if delay != 0 {
+		wait = true
+		typeName = fmt.Sprintf("WAIT_%vs", delay)
 	}
 
 	exchangeFullName := GetExchangeFullName(exchangeName, typeName)
@@ -100,7 +98,7 @@ func publisherBase(exchangeName string, typeName string, delay string, body []by
 			ContentEncoding: "UTF-8",
 			Body:            body,
 			DeliveryMode:    amqp.Persistent,
-			Expiration:      delay,
+			Expiration:      strconv.FormatInt(delay, 10),
 			Priority:        0}) // 0-9
 
 	if err != nil {
