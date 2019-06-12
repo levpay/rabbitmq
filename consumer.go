@@ -1,10 +1,7 @@
 package rabbitmq
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"strings"
 
 	"github.com/nuveo/log"
 
@@ -125,17 +122,4 @@ func handle(deliveries <-chan amqp.Delivery, actionFunction function) (err error
 	log.Errorln("handle: deliveries channel closed")
 
 	return
-}
-
-// DecodeBody decodes the body to a new interface
-func DecodeBody(body []byte, result interface{}) {
-	bodyJSON := string(body)
-
-	dec := json.NewDecoder(strings.NewReader(bodyJSON))
-
-	for {
-		if err := dec.Decode(&result); err == io.EOF {
-			break
-		}
-	}
 }

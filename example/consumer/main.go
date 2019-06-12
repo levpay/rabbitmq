@@ -18,7 +18,10 @@ func processMSG(b []byte) (err error) {
 	log.Println("Received a msg: ", string(b))
 
 	var test testStruct
-	rabbitmq.DecodeBody(b, &test)
+	err = json.Unmarshal(b, &test)
+	if err != nil {
+		return
+	}
 
 	test.Attempt++
 
