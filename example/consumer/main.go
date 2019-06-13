@@ -48,8 +48,15 @@ func main() {
 
 	go rabbitmq.SimpleConsumer("example", "", processMSG)
 
+	go rabbitmq.SimpleConsumer("example", "SUCCESS", processMSGReturnSUCCESS)
+
 	log.Println(" [*] Waiting for messages. To exit press CTRL+C")
 
 	forever := make(chan bool)
 	<-forever
+}
+
+func processMSGReturnSUCCESS(b []byte) (err error) {
+	log.Println("Received a msg of SUCCESS: ", string(b))
+	return
 }

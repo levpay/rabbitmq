@@ -26,5 +26,8 @@ func main() {
 
 	body, _ := json.Marshal(t)
 
-	rabbitmq.SimplePublisher("example", body)
+	err := rabbitmq.SimplePublisher("example", body)
+	if err != nil {
+		log.Errorln("Message not sent: ", err)
+	}
 }
