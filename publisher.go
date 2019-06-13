@@ -32,7 +32,7 @@ func publisherBase(exchangeName string, typeName string, delay int64, body []byt
 	wait := false
 	if delay != 0 {
 		wait = true
-		typeName = fmt.Sprintf("WAIT_%vs", delay)
+		typeName = fmt.Sprintf("WAIT_%v", delay)
 	}
 
 	exchangeFullName := GetExchangeFullName(exchangeName, typeName)
@@ -98,7 +98,7 @@ func publisherBase(exchangeName string, typeName string, delay int64, body []byt
 			ContentEncoding: "UTF-8",
 			Body:            body,
 			DeliveryMode:    amqp.Persistent,
-			Expiration:      strconv.FormatInt(delay, 10),
+			Expiration:      getExpiration(delay),
 			Priority:        0}) // 0-9
 
 	if err != nil {
@@ -107,6 +107,14 @@ func publisherBase(exchangeName string, typeName string, delay int64, body []byt
 	}
 
 	return
+}
+
+func getExpiration(delay int64) (expiration string) {
+	expiration = strconv.FormatInt(delay, 10)
+	if expiration == "0" {
+		return ""
+	}
+	return expiration
 }
 
 func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFullName string, defaultQueueName string, typeName string, wait bool) (err error) {
