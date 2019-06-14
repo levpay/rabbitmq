@@ -15,10 +15,10 @@
 .docker_build/
 bin/
 
+debug
+
 .vscode/*
 !.vscode/settings.json	
 !.vscode/tasks.json	
 !.vscode/launch.json	
-!.vscode/extensions.json 
-
-debug
+!.vscode/extensions.json
