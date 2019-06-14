@@ -60,7 +60,7 @@ func (c *consumer) connect() (err error) {
 	log.Debugln("dialing", Config.URL)
 	c.conn, err = amqp.Dial(Config.URL)
 	if err != nil {
-		log.Errorln("Failed to connect to RabbitMQ: ", err)
+		log.Errorln("Failed to connect to RabbitMQ ", err)
 		return
 	}
 	go func() { fmt.Printf("Closing connection: %s", <-c.conn.NotifyClose(make(chan *amqp.Error))) }()
@@ -68,14 +68,14 @@ func (c *consumer) connect() (err error) {
 	log.Debugln("Got Connection, getting Channel")
 	c.channel, err = c.conn.Channel()
 	if err != nil {
-		log.Errorln("Failed to open a channel: ", err)
+		log.Errorln("Failed to open a channel ", err)
 		return
 	}
 
 	log.Debugln("Got Channel, declaring Exchange", c.exchangeFullName)
 	err = c.channel.ExchangeDeclare(c.exchangeFullName, "fanout", true, false, false, false, nil)
 	if err != nil {
-		log.Errorln("Failed to declare exchange: ", err)
+		log.Errorln("Failed to declare exchange ", err)
 		return
 	}
 
@@ -117,14 +117,14 @@ func (c *consumer) announceQueue() (deliveries <-chan amqp.Delivery, err error) 
 		" messages, ", queue.Consumers, " consumers), binding to Exchange (key ", c.bindingKey, ")")
 	err = c.channel.QueueBind(queue.Name, c.bindingKey, c.exchangeFullName, false, nil)
 	if err != nil {
-		log.Errorln("Failed to bind a queue: ", err)
+		log.Errorln("Failed to bind a queue ", err)
 		return
 	}
 
 	log.Debugln("Queue bound to Exchange, starting Consume (consumer tag " + c.consumerTag + ")")
 	deliveries, err = c.channel.Consume(queue.Name, c.consumerTag, false, false, false, false, nil)
 	if err != nil {
-		log.Errorln("Failed to register a consumer: ", err)
+		log.Errorln("Failed to register a consumer ", err)
 		return
 	}
 	return
@@ -152,11 +152,11 @@ func (c *consumer) callingExternalFunc(deliveries <-chan amqp.Delivery) {
 	for d := range deliveries {
 		err := c.actionFunction(d.Body)
 		if err != nil {
-			log.Errorln("Failed to deliver the body: ", err)
+			log.Errorln("Failed to deliver the body ", err)
 		}
 		if err == nil {
 			d.Ack(false)
-			log.Debugln("Committed")
+			log.Println("Committed")
 		}
 	}
 }

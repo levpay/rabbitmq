@@ -65,9 +65,9 @@ func TestGetExchangeFullName(t *testing.T) {
 
 	t.Run("Test GetExchangeFullName method with success", func(t *testing.T) {
 
-		result := rabbitmq.GetExchangeFullName("exchangeX", "WAIT_10000ms")
+		result := rabbitmq.GetExchangeFullName("exchangeX", "WAIT_10000")
 
-		expected := "testing.exchangeX-exchange:WAIT_10000ms"
+		expected := "testing.exchangeX-exchange:WAIT_10000"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}

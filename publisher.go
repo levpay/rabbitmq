@@ -39,14 +39,14 @@ func publisherBase(exchangeName string, typeName string, delay int64, body []byt
 	log.Debugln("Dialing ", Config.URL)
 	connection, err := amqp.Dial(Config.URL)
 	if err != nil {
-		log.Errorln("Failed to connect to RabbitMQ: ", err)
+		log.Errorln("Failed to connect to RabbitMQ ", err)
 		return
 	}
 	defer connection.Close()
 	log.Debugln("Got connection, getting channel")
 	channel, err := connection.Channel()
 	if err != nil {
-		log.Errorln("Failed to open a channel: ", err)
+		log.Errorln("Failed to open a channel ", err)
 		return
 	}
 	defer channel.Close()
@@ -54,13 +54,13 @@ func publisherBase(exchangeName string, typeName string, delay int64, body []byt
 	log.Debugln("Got Channel, declaring Exchange: ", exchangeFullName)
 	err = channel.ExchangeDeclare(exchangeFullName, "fanout", true, false, false, false, nil)
 	if err != nil {
-		log.Errorln("Failed to declare exchange: ", err)
+		log.Errorln("Failed to declare exchange ", err)
 		return
 	}
 	log.Debugln("Enabling publishing confirms.")
 	err = channel.Confirm(false)
 	if err != nil {
-		log.Errorln("Channel could not be put into confirm mode: ", err)
+		log.Errorln("Channel could not be put into confirm mode ", err)
 		return
 	}
 	confirms := channel.NotifyPublish(make(chan amqp.Confirmation, 1))
@@ -93,7 +93,6 @@ func getExpiration(delay int64) (expiration string) {
 }
 
 func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFullName string, defaultQueueName string, typeName string, wait bool) (err error) {
-
 	var args amqp.Table
 	if wait {
 		args = make(amqp.Table)
@@ -101,11 +100,11 @@ func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFull
 	}
 
 	queue, err := channel.QueueDeclare(defaultQueueName, true, false, false, false, args)
-
 	if err != nil {
-		log.Errorln("Failed to declare a queue: ", err)
+		log.Errorln("Failed to declare a queue ", err)
 		return
 	}
+
 	bindingKey := fmt.Sprintf("%s-key", queue.Name)
 	log.Debugln("Declared Queue (",
 		queue.Name, " ", queue.Messages, " messages, ", queue.Consumers,
