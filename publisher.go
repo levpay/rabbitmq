@@ -58,8 +58,7 @@ func publisherBase(exchangeName string, typeName string, delay int64, body []byt
 		return
 	}
 	log.Debugln("Enabling publishing confirms.")
-	err = channel.Confirm(false)
-	if err != nil {
+	if err = channel.Confirm(false); err != nil {
 		log.Errorln("Channel could not be put into confirm mode ", err)
 		return
 	}
