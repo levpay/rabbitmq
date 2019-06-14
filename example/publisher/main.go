@@ -20,7 +20,8 @@ func main() {
 
 	u, _ := uuid.NewUUID()
 	t := test{
-		UUID: u}
+		UUID: u,
+	}
 
 	log.Println(fmt.Sprintf("\n\nPublishing a msg %s.\n", t.UUID))
 

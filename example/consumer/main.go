@@ -52,8 +52,7 @@ func main() {
 
 	log.Println(" [*] Waiting for messages. To exit press CTRL+C")
 
-	forever := make(chan bool)
-	<-forever
+	<-make(chan bool)
 }
 
 func processMSGReturnSUCCESS(b []byte) (err error) {

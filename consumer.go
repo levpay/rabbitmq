@@ -84,11 +84,7 @@ func (c *consumer) connect() (err error) {
 		return
 	}
 
-	err = c.handle(deliveries)
-	if err != nil {
-		return
-	}
-	return
+	return c.handle(deliveries)
 }
 
 func (c *consumer) reConnect() (deliveries <-chan amqp.Delivery, err error) {
