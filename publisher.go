@@ -67,7 +67,7 @@ func publisherBase(exchangeName string, typeName string, delay int64, body []byt
 	defaultQueueFullName := GetQueueFullName(exchangeName, "", typeName)
 	err = createDefaultQueue(channel, exchangeName, exchangeFullName, defaultQueueFullName, typeName, wait)
 	if err != nil {
-		log.Errorln("Failed to create default queue: ", err)
+		log.Errorln("Failed to create default queue ", err)
 		return
 	}
 	log.Debugln("Declared exchange [", exchangeFullName, "], publishing ", len(body), "  body ", string(body))
@@ -103,7 +103,6 @@ func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFull
 		log.Errorln("Failed to declare a queue ", err)
 		return
 	}
-
 	bindingKey := fmt.Sprintf("%s-key", queue.Name)
 	log.Debugln("Declared Queue (",
 		queue.Name, " ", queue.Messages, " messages, ", queue.Consumers,
