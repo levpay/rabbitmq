@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/nuveo/log"
-
 	"github.com/streadway/amqp"
 )
 
@@ -31,6 +30,7 @@ type function func([]byte) error
 // Consumer associates a function to receive messages from the queue.
 func Consumer(exchangeName, queueSuffixName, typeName, consumerSuffixTag string, actionFunction function) (err error) {
 	log.Println("Creating a new consumer")
+
 	c := &consumer{
 		exchangeName:      exchangeName,
 		queueSuffixName:   queueSuffixName,
@@ -38,7 +38,6 @@ func Consumer(exchangeName, queueSuffixName, typeName, consumerSuffixTag string,
 		consumerSuffixTag: consumerSuffixTag,
 		actionFunction:    actionFunction,
 	}
-
 	return c.connect()
 }
 
@@ -64,10 +63,7 @@ func (c *consumer) connect() (err error) {
 		log.Errorln("Failed to connect to RabbitMQ: ", err)
 		return
 	}
-	go func() {
-		log.Printf("closing: %s", <-c.conn.NotifyClose(make(chan *amqp.Error)))
-		c.done <- errors.New("Channel Closed")
-	}()
+	go func() { fmt.Printf("Closing connection: %s", <-c.conn.NotifyClose(make(chan *amqp.Error))) }()
 
 	log.Debugln("Got Connection, getting Channel")
 	c.channel, err = c.conn.Channel()
@@ -77,15 +73,7 @@ func (c *consumer) connect() (err error) {
 	}
 
 	log.Debugln("Got Channel, declaring Exchange", c.exchangeFullName)
-	err = c.channel.ExchangeDeclare(
-		c.exchangeFullName, // name of the exchange
-		"fanout",           // type
-		true,               // durable
-		false,              // delete when complete
-		false,              // internal
-		false,              // noWait
-		nil,                // arguments
-	)
+	err = c.channel.ExchangeDeclare(c.exchangeFullName, "fanout", true, false, false, false, nil)
 	if err != nil {
 		log.Errorln("Failed to declare exchange: ", err)
 		return
@@ -100,7 +88,6 @@ func (c *consumer) connect() (err error) {
 	if err != nil {
 		return
 	}
-
 	return
 }
 
@@ -123,44 +110,23 @@ func (c *consumer) reConnect() (deliveries <-chan amqp.Delivery, err error) {
 func (c *consumer) announceQueue() (deliveries <-chan amqp.Delivery, err error) {
 	log.Debugln("Announcing the queue of the consumer")
 
-	queue, err := c.channel.QueueDeclare(
-		c.queueFullName, // name
-		true,            // durable
-		false,           // delete when unused
-		false,           // exclusive
-		false,           // no-wait
-		nil,             // arguments
-	)
+	queue, err := c.channel.QueueDeclare(c.queueFullName, true, false, false, false, nil)
 	if err != nil {
 		log.Errorln("Failed to declare a queue: ", err)
 		return
 	}
 
 	c.bindingKey = fmt.Sprintf("%s-key", queue.Name)
-	log.Debugln("Declared Queue (", queue.Name, " ", queue.Messages, " messages, ", queue.Consumers,
-		" consumers), binding to Exchange (key ", c.bindingKey, ")")
-	err = c.channel.QueueBind(
-		queue.Name,         // name of the queue
-		c.bindingKey,       // bindingKey
-		c.exchangeFullName, // sourceExchange
-		false,              // noWait
-		nil,                // arguments
-	)
+	log.Debugln("Declared Queue (", queue.Name, " ", queue.Messages,
+		" messages, ", queue.Consumers, " consumers), binding to Exchange (key ", c.bindingKey, ")")
+	err = c.channel.QueueBind(queue.Name, c.bindingKey, c.exchangeFullName, false, nil)
 	if err != nil {
 		log.Errorln("Failed to bind a queue: ", err)
 		return
 	}
 
 	log.Debugln("Queue bound to Exchange, starting Consume (consumer tag " + c.consumerTag + ")")
-	deliveries, err = c.channel.Consume(
-		queue.Name,    // queue
-		c.consumerTag, // consumer
-		false,         // auto-ack
-		false,         // exclusive
-		false,         // no-local
-		false,         // no-wait
-		nil,           // args
-	)
+	deliveries, err = c.channel.Consume(queue.Name, c.consumerTag, false, false, false, false, nil)
 	if err != nil {
 		log.Errorln("Failed to register a consumer: ", err)
 		return
@@ -170,6 +136,7 @@ func (c *consumer) announceQueue() (deliveries <-chan amqp.Delivery, err error) 
 
 func (c *consumer) handle(deliveries <-chan amqp.Delivery) (err error) {
 	log.Debugln("Handling the messages")
+
 	for {
 		go c.callingExternalFunc(deliveries)
 
@@ -179,7 +146,6 @@ func (c *consumer) handle(deliveries <-chan amqp.Delivery) (err error) {
 				log.Fatal("Reconnecting Error: ", err)
 			}
 		}
-
 		log.Println("Reconnected... possibly")
 	}
 }
@@ -192,7 +158,6 @@ func (c *consumer) callingExternalFunc(deliveries <-chan amqp.Delivery) {
 		if err != nil {
 			log.Errorln("Failed to deliver the body: ", err)
 		}
-
 		if err == nil {
 			d.Ack(false)
 			log.Debugln("Committed")

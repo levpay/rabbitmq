@@ -1,11 +1,11 @@
 package rabbitmq
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/nuveo/log"
 )
 
 type config struct {
@@ -17,27 +17,25 @@ type config struct {
 var Config *config
 
 // Load sets the initial settings
-func Load() {
-
+func Load() (err error) {
 	if Config != nil {
 		return
 	}
 	Config = &config{
 		URL: os.Getenv("CLOUDAMQP_URL"),
-		Env: os.Getenv("ENV")}
-
+		Env: os.Getenv("ENV"),
+	}
 	if Config.URL == "" {
-		log.Fatal("CLOUDAMQP_URL is missing in the environments variables")
+		return errors.New("CLOUDAMQP_URL is missing in the environments variables")
 	}
-
 	if Config.Env == "" {
-		log.Fatal("ENV is missing in the environments variables")
+		return errors.New("ENV is missing in the environments variables")
 	}
+	return
 }
 
 // GetQueueFullName returns the queue name referencing the exchange and the environment
-func GetQueueFullName(exchangeName string, queueSuffixName string, typeName string) (queueFullName string) {
-
+func GetQueueFullName(exchangeName string, queueSuffixName string, typeName string) string {
 	if queueSuffixName == "" {
 		queueSuffixName = "master"
 	}
@@ -45,37 +43,25 @@ func GetQueueFullName(exchangeName string, queueSuffixName string, typeName stri
 	if typeName != "" {
 		typeName = fmt.Sprintf(":%s", typeName)
 	}
-
-	queueFullName = fmt.Sprintf("%s.%s.%s-queue%s", Config.Env, exchangeName, queueSuffixName, typeName)
-
-	return
+	return fmt.Sprintf("%s.%s.%s-queue%s", Config.Env, exchangeName, queueSuffixName, typeName)
 }
 
 // GetExchangeFullName returns the exchange name referencing the environment
-func GetExchangeFullName(exchangeName string, typeName string) (exchangeFullName string) {
-
+func GetExchangeFullName(exchangeName string, typeName string) string {
 	if typeName != "" {
 		typeName = fmt.Sprintf(":%s", typeName)
 	}
-
-	exchangeFullName = fmt.Sprintf("%s.%s-exchange%s", Config.Env, exchangeName, typeName)
-
-	return
+	return fmt.Sprintf("%s.%s-exchange%s", Config.Env, exchangeName, typeName)
 }
 
 // GetConsumerTag returns the name of the consumer referencing the name of the exchange, queue, and environment
-func GetConsumerTag(exchangeName string, queueSuffixName string, consumerSuffixTag string) (consumerTag string) {
-
+func GetConsumerTag(exchangeName string, queueSuffixName string, consumerSuffixTag string) string {
 	if queueSuffixName == "" {
 		queueSuffixName = "master"
 	}
-
 	if consumerSuffixTag == "" {
 		u, _ := uuid.NewUUID()
 		consumerSuffixTag = u.String()
 	}
-
-	consumerTag = fmt.Sprintf("%s.%s..%s.%s-consumer", Config.Env, exchangeName, queueSuffixName, consumerSuffixTag)
-
-	return
+	return fmt.Sprintf("%s.%s..%s.%s-consumer", Config.Env, exchangeName, queueSuffixName, consumerSuffixTag)
 }
