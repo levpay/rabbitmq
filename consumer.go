@@ -10,35 +10,51 @@ import (
 )
 
 type consumer struct {
-	conn              *amqp.Connection
-	channel           *amqp.Channel
-	exchangeName      string
-	queueSuffixName   string
-	typeName          string
-	consumerSuffixTag string
-	actionFunction    function
-	done              chan error
+	conn          *amqp.Connection
+	channel       *amqp.Channel
+	queuesLoaded  map[string]bool
+	done          chan error
+	threads       int
+	prefetchCount int
 
-	exchangeFullName string
-	queueFullName    string
-	consumerTag      string
-	bindingKey       string
+	// exchangeName      string
+	// queueSuffixName   string
+	// typeName          string
+	// consumerSuffixTag string
+	// actionFunction    function
+
+	// exchangeFullName string
+	// queueFullName    string
+	// consumerTag      string
+	// bindingKey       string
+
+	doneThreads []chan bool
 }
 
 type function func([]byte) error
 
-// Consumer associates a function to receive messages from the queue.
-func Consumer(exchangeName, queueSuffixName, typeName, consumerSuffixTag string, actionFunction function) (err error) {
-	log.Println("Creating a new consumer")
+var c *consumer
 
-	c := &consumer{
-		exchangeName:      exchangeName,
-		queueSuffixName:   queueSuffixName,
-		typeName:          typeName,
-		consumerSuffixTag: consumerSuffixTag,
-		actionFunction:    actionFunction,
+// LoadConsumer iss
+func LoadConsumer() (err error) {
+	log.Println("LoadConsumer ...")
+
+	Load()
+
+	c = &consumer{
+		threads:       50,
+		prefetchCount: 100,
+
+		queuesLoaded: make(map[string]bool),
+		done:         make(chan error),
 	}
-	return c.connect()
+
+	err = c.connect()
+	if err != nil {
+		return
+	}
+
+	return c.createChannel()
 }
 
 // SimpleConsumer is a simple version of the Consumer that associates a function to receive messages from the queue
@@ -47,116 +63,197 @@ func SimpleConsumer(exchangeName string, typeName string, actionFunction functio
 }
 
 func (c *consumer) connect() (err error) {
-	log.Debugln("Connecting the consumer")
+	log.Debugln("Consumer - connecting ", Config.URL)
 
-	if c.done == nil {
-		c.done = make(chan error)
+	if c.conn != nil {
+		return
 	}
 
-	c.exchangeFullName = GetExchangeFullName(c.exchangeName, c.typeName)
-	c.queueFullName = GetQueueFullName(c.exchangeName, c.queueSuffixName, c.typeName)
-	c.consumerTag = GetConsumerTag(c.exchangeName, c.queueSuffixName, "")
-
-	log.Debugln("dialing", Config.URL)
 	c.conn, err = amqp.Dial(Config.URL)
 	if err != nil {
-		log.Errorln("Failed to connect to RabbitMQ ", err)
+		log.Errorln("Consumer - Failed to connect to RabbitMQ ", err)
 		return
 	}
-	go func() { fmt.Printf("Closing connection: %s", <-c.conn.NotifyClose(make(chan *amqp.Error))) }()
+	log.Debugln("Consumer - Got connection")
 
-	log.Debugln("Got Connection, getting Channel")
-	c.channel, err = c.conn.Channel()
-	if err != nil {
-		log.Errorln("Failed to open a channel ", err)
-		return
-	}
+	go func() { fmt.Printf("Consumer - Closing connection: %s", <-c.conn.NotifyClose(make(chan *amqp.Error))) }()
 
-	log.Debugln("Got Channel, declaring Exchange", c.exchangeFullName)
-	err = c.channel.ExchangeDeclare(c.exchangeFullName, "fanout", true, false, false, false, nil)
-	if err != nil {
-		log.Errorln("Failed to declare exchange ", err)
-		return
-	}
-
-	deliveries, err := c.announceQueue()
-	if err != nil {
-		return
-	}
-
-	return c.handle(deliveries)
+	return
 }
 
-func (c *consumer) reConnect() (deliveries <-chan amqp.Delivery, err error) {
-	log.Printf("Reconnecting, waiting a few seconds.")
-	time.Sleep(15 * time.Second)
+func (c *consumer) createChannel() (err error) {
+	log.Debugln("Consumer - Getting channel")
 
-	if err := c.connect(); err != nil {
-		log.Printf("Could not connect in reconnect call: %v", err.Error())
+	if c.channel != nil {
+		return
 	}
 
-	deliveries, err = c.announceQueue()
+	c.channel, err = c.conn.Channel()
 	if err != nil {
-		log.Errorln("Failed to reconnect: ", err)
+		log.Errorln("Consumer - Failed to open a channel ", err)
+		return
+	}
+	log.Debugln("Consumer - Got Channel")
+
+	go func() {
+		fmt.Printf("Consumer - Closing channel: %s", <-c.channel.NotifyClose(make(chan *amqp.Error)))
+	}()
+
+	err = c.channel.Qos(c.prefetchCount, 0, false)
+	if err != nil {
+		log.Errorln("Consumer - Error setting qos: ", err)
+		return
+	}
+
+	return
+}
+
+func (c *consumer) createExchangeAndQueue(exchangeName, typeName, queueSuffixName string) (exchangeFullName string, err error) {
+	exchangeFullName = GetExchangeFullName(exchangeName, typeName)
+	queueFullName := GetQueueFullName(exchangeName, queueSuffixName, typeName)
+
+	log.Debugln("Consumer - createExchangeAndQueue: ", exchangeFullName)
+
+	if c.queuesLoaded[exchangeFullName] {
+		return
+	}
+
+	log.Debugln("Consumer - Declaring Exchange: ", exchangeFullName)
+	err = c.channel.ExchangeDeclare(exchangeFullName, "fanout", true, false, false, false, nil)
+	if err != nil {
+		log.Errorln("Consumer - Failed to declare exchange ", err)
+		return
+	}
+
+	queue, err := c.channel.QueueDeclare(queueFullName, true, false, false, false, nil)
+	if err != nil {
+		log.Errorln("Consumer - Failed to declare a queue: ", err)
+		return
+	}
+
+	bindingKey := fmt.Sprintf("%s-key", queueFullName)
+	log.Debugln("Consumer - Declared Queue (", queueFullName, " ", queue.Messages,
+		" messages, ", queue.Consumers, " consumers), binding to Exchange (key ", bindingKey, ")")
+	err = c.channel.QueueBind(queueFullName, bindingKey, exchangeFullName, false, nil)
+	if err != nil {
+		log.Errorln("Consumer - Failed to bind a queue ", err)
+		return
+	}
+
+	c.queuesLoaded[exchangeFullName] = true
+
+	return
+}
+
+// Consumer associates a function to receive messages from the queue.
+func Consumer(exchangeName, queueSuffixName, typeName, consumerSuffixTag string, actionFunction function) (err error) {
+	log.Println("Consumer - Creating a new consumer")
+
+	err = c.connect()
+	if err != nil {
+		return
+	}
+
+	err = c.createChannel()
+	if err != nil {
+		return
+	}
+
+	_, err = c.createExchangeAndQueue(exchangeName, typeName, queueSuffixName)
+	if err != nil {
+		return
+	}
+
+	deliveries, err := c.announceQueue(exchangeName, queueSuffixName, typeName)
+	if err != nil {
+		return
+	}
+
+	return c.handle(deliveries, exchangeName, queueSuffixName, typeName, actionFunction)
+}
+
+func (c *consumer) reConnect(exchangeName, queueSuffixName, typeName string) (deliveries <-chan amqp.Delivery, err error) {
+	log.Printf("Consumer - Reconnecting, waiting a few seconds.")
+	time.Sleep(30 * time.Second)
+
+	if err = c.connect(); err != nil {
+		log.Printf("Consumer - Could not connect in reconnect call: %v", err.Error())
+		return nil, err
+	}
+
+	deliveries, err = c.announceQueue(exchangeName, queueSuffixName, typeName)
+	if err != nil {
+		log.Errorln("Consumer - Failed to reconnect: ", err)
 		return nil, errors.New("Couldn't connect")
 	}
 	return
 }
 
-func (c *consumer) announceQueue() (deliveries <-chan amqp.Delivery, err error) {
-	log.Debugln("Announcing the queue of the consumer")
+func (c *consumer) announceQueue(exchangeName, queueSuffixName, typeName string) (deliveries <-chan amqp.Delivery, err error) {
+	log.Debugln("Consumer - Announcing the queue of the consumer")
 
-	queue, err := c.channel.QueueDeclare(c.queueFullName, true, false, false, false, nil)
-	if err != nil {
-		log.Errorln("Failed to declare a queue: ", err)
-		return
-	}
+	consumerTag := GetConsumerTag(exchangeName, queueSuffixName, "")
+	queueFullName := GetQueueFullName(exchangeName, queueSuffixName, typeName)
 
-	c.bindingKey = fmt.Sprintf("%s-key", queue.Name)
-	log.Debugln("Declared Queue (", queue.Name, " ", queue.Messages,
-		" messages, ", queue.Consumers, " consumers), binding to Exchange (key ", c.bindingKey, ")")
-	err = c.channel.QueueBind(queue.Name, c.bindingKey, c.exchangeFullName, false, nil)
+	log.Debugln("Consumer - Starting Consume  tag: ", consumerTag)
+	deliveries, err = c.channel.Consume(queueFullName, consumerTag, false, false, false, false, nil)
 	if err != nil {
-		log.Errorln("Failed to bind a queue ", err)
-		return
-	}
-
-	log.Debugln("Queue bound to Exchange, starting Consume (consumer tag " + c.consumerTag + ")")
-	deliveries, err = c.channel.Consume(queue.Name, c.consumerTag, false, false, false, false, nil)
-	if err != nil {
-		log.Errorln("Failed to register a consumer ", err)
+		log.Errorln("Consumer - Failed to register a consumer ", err)
 		return
 	}
 	return
 }
 
-func (c *consumer) handle(deliveries <-chan amqp.Delivery) (err error) {
-	log.Debugln("Handling the messages")
+func (c *consumer) handle(deliveries <-chan amqp.Delivery, exchangeName, queueSuffixName, typeName string, actionFunction function) (err error) {
+	log.Debugln("Consumer - Handling the messages")
 
 	for {
-		go c.callingExternalFunc(deliveries)
+		c.doneThreads = make([]chan bool, c.threads)
+		for i := 0; i < c.threads; i++ {
+			go c.callingExternalFunc(deliveries, i, actionFunction)
+		}
 
 		if <-c.done != nil {
-			deliveries, err = c.reConnect()
+			c.terminateOldWorkers()
+			deliveries, err = c.reConnect(exchangeName, queueSuffixName, typeName)
 			if err != nil {
-				log.Fatal("Reconnecting Error: ", err)
+				log.Fatal("Consumer - Reconnecting Error: ", err)
 			}
 		}
-		log.Println("Reconnected... possibly")
+		log.Println("Consumer - Reconnected... possibly")
 	}
 }
 
-func (c *consumer) callingExternalFunc(deliveries <-chan amqp.Delivery) {
-	log.Debugln("Calling the external func")
+func (c *consumer) terminateOldWorkers() {
+	for i := 0; i < c.threads; i++ {
+		log.Println("Consumer - ===============================================", i)
+		log.Println("Consumer - ===============================================", i)
+		log.Println("Consumer - ===============================================", i)
+		c.doneThreads[i] <- true
+	}
+}
 
-	for d := range deliveries {
-		err := c.actionFunction(d.Body)
-		if err != nil {
-			log.Errorln("Failed to deliver the body ", err)
-		}
-		if err == nil {
-			d.Ack(false)
-			log.Println("Committed")
+func (c *consumer) callingExternalFunc(delivery <-chan amqp.Delivery, i int, actionFunction function) {
+	log.Debugln("Consumer - Calling the external func, thread: ", i)
+	c.doneThreads[i] = make(chan bool)
+	for {
+		select {
+		case <-c.doneThreads[i]:
+			return
+		case d := <-delivery:
+			err := actionFunction(d.Body)
+			if err != nil {
+				log.Println("Consumer - Failed to deliver the body ", err)
+			}
+
+			err = d.Ack(false)
+			if err != nil {
+				log.Errorln("Consumer - Failed to ack the msg ", err)
+				// c.doneThreads[i] <- true
+				c.done <- err
+				return
+			}
+			log.Println("Consumer - Committed")
 		}
 	}
 }

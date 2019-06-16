@@ -43,12 +43,21 @@ func processMSG(b []byte) (err error) {
 }
 
 func main() {
-	// log.DebugMode = true
-	rabbitmq.Load()
+	log.DebugMode = true
+	// rabbitmq.Load()
+	err := rabbitmq.LoadConsumer()
+	if err != nil {
+		log.Fatal("Failed to load consumer")
+	}
+
+	err = rabbitmq.LoadPublisher()
+	if err != nil {
+		log.Fatal("Failed to load publisher")
+	}
 
 	go rabbitmq.SimpleConsumer("example", "", processMSG)
 
-	go rabbitmq.SimpleConsumer("example", "SUCCESS", processMSGReturnSUCCESS)
+	// go rabbitmq.SimpleConsumer("example", "SUCCESS", processMSGReturnSUCCESS)
 
 	log.Println(" [*] Waiting for messages. To exit press CTRL+C")
 
