@@ -60,8 +60,7 @@ func GetConsumerTag(exchangeName string, queueSuffixName string, consumerSuffixT
 		queueSuffixName = "master"
 	}
 	if consumerSuffixTag == "" {
-		u, _ := uuid.NewUUID()
-		consumerSuffixTag = u.String()
+		consumerSuffixTag = uuid.New().String()
 	}
 	return fmt.Sprintf("%s.%s..%s.%s-consumer", Config.Env, exchangeName, queueSuffixName, consumerSuffixTag)
 }

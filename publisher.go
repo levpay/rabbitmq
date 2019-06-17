@@ -228,9 +228,8 @@ func getExpiration(delay int64) (expiration string) {
 }
 
 func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFullName string, defaultQueueName string, typeName string, wait bool) (err error) {
-	var args amqp.Table
+	args := make(amqp.Table)
 	if wait {
-		args = make(amqp.Table)
 		args["x-dead-letter-exchange"] = GetExchangeFullName(exchangeName, "")
 	}
 

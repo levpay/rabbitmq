@@ -217,7 +217,8 @@ func (c *consumer) handle(deliveries <-chan amqp.Delivery, exchangeName, queueSu
 			c.terminateOldWorkers()
 			deliveries, err = c.reConnect(exchangeName, queueSuffixName, typeName)
 			if err != nil {
-				log.Fatal("Consumer - Reconnecting Error: ", err)
+				log.Errorln("Consumer - Reconnecting Error: ", err)
+				return err
 			}
 		}
 		log.Println("Consumer - Reconnected... possibly")
