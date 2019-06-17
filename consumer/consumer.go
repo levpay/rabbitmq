@@ -1,10 +1,11 @@
-package rabbitmq
+package consumer
 
 import (
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/levpay/rabbitmq"
 	"github.com/nuveo/log"
 	"github.com/streadway/amqp"
 )
@@ -39,7 +40,7 @@ var c *consumer
 func LoadConsumer() (err error) {
 	log.Println("LoadConsumer ...")
 
-	Load()
+	rabbitmq.Load()
 
 	c = &consumer{
 		threads:       50,
@@ -63,13 +64,13 @@ func SimpleConsumer(exchangeName string, typeName string, actionFunction functio
 }
 
 func (c *consumer) connect() (err error) {
-	log.Debugln("Consumer - connecting ", Config.URL)
+	log.Debugln("Consumer - connecting ", rabbitmq.Config.URL)
 
 	if c.conn != nil {
 		return
 	}
 
-	c.conn, err = amqp.Dial(Config.URL)
+	c.conn, err = amqp.Dial(rabbitmq.Config.URL)
 	if err != nil {
 		log.Errorln("Consumer - Failed to connect to RabbitMQ ", err)
 		return
@@ -109,8 +110,8 @@ func (c *consumer) createChannel() (err error) {
 }
 
 func (c *consumer) createExchangeAndQueue(exchangeName, typeName, queueSuffixName string) (exchangeFullName string, err error) {
-	exchangeFullName = GetExchangeFullName(exchangeName, typeName)
-	queueFullName := GetQueueFullName(exchangeName, queueSuffixName, typeName)
+	exchangeFullName = rabbitmq.GetExchangeFullName(exchangeName, typeName)
+	queueFullName := rabbitmq.GetQueueFullName(exchangeName, queueSuffixName, typeName)
 
 	log.Debugln("Consumer - createExchangeAndQueue: ", exchangeFullName)
 
@@ -192,8 +193,8 @@ func (c *consumer) reConnect(exchangeName, queueSuffixName, typeName string) (de
 func (c *consumer) announceQueue(exchangeName, queueSuffixName, typeName string) (deliveries <-chan amqp.Delivery, err error) {
 	log.Debugln("Consumer - Announcing the queue of the consumer")
 
-	consumerTag := GetConsumerTag(exchangeName, queueSuffixName, "")
-	queueFullName := GetQueueFullName(exchangeName, queueSuffixName, typeName)
+	consumerTag := rabbitmq.GetConsumerTag(exchangeName, queueSuffixName, "")
+	queueFullName := rabbitmq.GetQueueFullName(exchangeName, queueSuffixName, typeName)
 
 	log.Debugln("Consumer - Starting Consume  tag: ", consumerTag)
 	deliveries, err = c.channel.Consume(queueFullName, consumerTag, false, false, false, false, nil)

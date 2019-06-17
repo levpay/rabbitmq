@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/levpay/rabbitmq"
+	"github.com/levpay/rabbitmq/consumer"
 	"github.com/levpay/rabbitmq/publisher"
 	"github.com/nuveo/log"
 )
@@ -46,7 +46,7 @@ func processMSG(b []byte) (err error) {
 func main() {
 	log.DebugMode = true
 	// rabbitmq.Load()
-	err := rabbitmq.LoadConsumer()
+	err := consumer.LoadConsumer()
 	if err != nil {
 		log.Fatal("Failed to load consumer")
 	}
@@ -56,7 +56,7 @@ func main() {
 		log.Fatal("Failed to load publisher")
 	}
 
-	go rabbitmq.SimpleConsumer("example", "", processMSG)
+	go consumer.SimpleConsumer("example", "", processMSG)
 
 	// go rabbitmq.SimpleConsumer("example", "SUCCESS", processMSGReturnSUCCESS)
 
