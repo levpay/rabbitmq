@@ -139,7 +139,8 @@ func (c *consumer) handle(deliveries <-chan amqp.Delivery) (err error) {
 		if <-c.done != nil {
 			deliveries, err = c.reConnect()
 			if err != nil {
-				log.Fatal("Reconnecting Error: ", err)
+				log.Errorln("Reconnecting Error: ", err)
+				return err
 			}
 		}
 		log.Println("Reconnected... possibly")

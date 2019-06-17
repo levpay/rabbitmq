@@ -8,8 +8,8 @@ Encapsulation to facilitate the use of rabbitMQ
 
 ### Consumer
 
-`$ ENV=local CLOUDAMQP_URL=amqp://***REMOVED***:***REMOVED***@***REMOVED***/***REMOVED*** go run example/consumer/main.go`
+`$ ENV=local CLOUDAMQP_URL=amqp://user:password@domain.com/vhost go run example/consumer/main.go`
 
 ### Publisher
 
-`$ ENV=local CLOUDAMQP_URL=amqp://***REMOVED***:***REMOVED***@***REMOVED***/***REMOVED*** go run example/publisher/main.go`
+`$ ENV=local CLOUDAMQP_URL=amqp://user:password@domain.com/vhost go run example/publisher/main.go`
