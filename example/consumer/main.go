@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/levpay/rabbitmq"
+	"github.com/levpay/rabbitmq/publisher"
 	"github.com/nuveo/log"
 )
 
@@ -30,12 +31,12 @@ func processMSG(b []byte) (err error) {
 	switch test.Attempt {
 	case 1:
 		log.Println("Queuing with a delay of 5 seconds -> ", test.UUID)
-		err = rabbitmq.PublisherWithDelay("example", 5000, body)
+		err = publisher.PublisherWithDelay("example", 5000, body)
 	case 2:
 		log.Println("Queuing with a delay of 10 seconds. -> ", test.UUID)
-		err = rabbitmq.PublisherWithDelay("example", 10000, body)
+		err = publisher.PublisherWithDelay("example", 10000, body)
 	default:
-		err = rabbitmq.Publisher("example", "SUCCESS", body)
+		err = publisher.Publisher("example", "SUCCESS", body)
 		log.Println("Success -> ", test.UUID)
 	}
 
@@ -50,7 +51,7 @@ func main() {
 		log.Fatal("Failed to load consumer")
 	}
 
-	err = rabbitmq.LoadPublisher()
+	err = publisher.LoadPublisher()
 	if err != nil {
 		log.Fatal("Failed to load publisher")
 	}

@@ -1,9 +1,10 @@
-package rabbitmq
+package publisher
 
 import (
 	"fmt"
 	"strconv"
 
+	"github.com/levpay/rabbitmq"
 	"github.com/nuveo/log"
 	"github.com/streadway/amqp"
 )
@@ -70,7 +71,7 @@ var p *publisher
 func LoadPublisher() (err error) {
 	log.Println("LoadPublisher ...")
 
-	Load()
+	rabbitmq.Load()
 
 	p = &publisher{
 		queuesLoaded: make(map[string]bool),
@@ -90,8 +91,8 @@ func (p *publisher) connect() (err error) {
 		return
 	}
 
-	log.Debugln("Publisher - connecting ", Config.URL)
-	p.conn, err = amqp.Dial(Config.URL)
+	log.Debugln("Publisher - connecting ", rabbitmq.Config.URL)
+	p.conn, err = amqp.Dial(rabbitmq.Config.URL)
 	if err != nil {
 		log.Errorln("Publisher - Failed to connect to RabbitMQ ", err)
 		return
@@ -104,11 +105,10 @@ func (p *publisher) connect() (err error) {
 }
 
 func (p *publisher) createChannel() (err error) {
-	log.Debugln("Publisher - Getting channel")
-
 	if p.channel != nil {
 		return
 	}
+	log.Debugln("Publisher - Getting channel")
 
 	p.channel, err = p.conn.Channel()
 	if err != nil {
@@ -143,7 +143,7 @@ func (p *publisher) createExchangeAndQueue(exchangeName, typeName string, delay 
 		typeName = fmt.Sprintf("WAIT_%v", delay)
 	}
 
-	exchangeFullName = GetExchangeFullName(exchangeName, typeName)
+	exchangeFullName = rabbitmq.GetExchangeFullName(exchangeName, typeName)
 
 	log.Debugln("Publisher - createExchangeAndQueue: ", exchangeFullName)
 
@@ -159,7 +159,7 @@ func (p *publisher) createExchangeAndQueue(exchangeName, typeName string, delay 
 		return
 	}
 
-	defaultQueueFullName := GetQueueFullName(exchangeName, "", typeName)
+	defaultQueueFullName := rabbitmq.GetQueueFullName(exchangeName, "", typeName)
 	err = createDefaultQueue(p.channel, exchangeName, exchangeFullName, defaultQueueFullName, typeName, wait)
 	if err != nil {
 		log.Errorln("Publisher - Failed to create default queue ", err)
@@ -230,7 +230,7 @@ func getExpiration(delay int64) (expiration string) {
 func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFullName string, defaultQueueName string, typeName string, wait bool) (err error) {
 	args := make(amqp.Table)
 	if wait {
-		args["x-dead-letter-exchange"] = GetExchangeFullName(exchangeName, "")
+		args["x-dead-letter-exchange"] = rabbitmq.GetExchangeFullName(exchangeName, "")
 	}
 
 	queue, err := channel.QueueDeclare(defaultQueueName, true, false, false, false, args)
