@@ -44,16 +44,15 @@ func New() (c *Consumer, err error) {
 
 		done: make(chan error),
 	}
+	return c, c.prepare()
+}
+
+func (c *Consumer) prepare() (err error) {
+
 	err = c.Config()
 	if err != nil {
 		return
 	}
-
-	return c, c.createChannel()
-}
-
-func (c *Consumer) createChannel() (err error) {
-	c.LoadChannel()
 
 	err = c.Channel.Qos(c.prefetchCount, 0, false)
 	if err != nil {
@@ -104,16 +103,6 @@ func (c *Consumer) createExchangeAndQueue(exchangeName, typeName, queueSuffixNam
 // Consume associates a function to receive messages from the queue.
 func (c *Consumer) Consume(exchangeName, queueSuffixName, typeName, consumerSuffixTag string, actionFunction function) (err error) {
 	log.Println("Consumer - Creating a new consumer")
-
-	err = c.Connect()
-	if err != nil {
-		return
-	}
-
-	err = c.createChannel()
-	if err != nil {
-		return
-	}
 
 	_, err = c.createExchangeAndQueue(exchangeName, typeName, queueSuffixName)
 	if err != nil {

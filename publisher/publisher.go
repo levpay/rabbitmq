@@ -21,12 +21,30 @@ func New() (p *Publisher, err error) {
 	log.Println("New Publisher ...")
 
 	p = &Publisher{}
+	return p, p.prepare()
+}
+
+func (p *Publisher) prepare() (err error) {
 	err = p.Config()
 	if err != nil {
 		return
 	}
 
-	return p, p.createChannel()
+	go func() {
+		for res := range p.Channel.NotifyReturn(make(chan amqp.Return)) {
+			fmt.Println("Publisher - result ", res)
+		}
+	}()
+
+	p.confirms = p.Channel.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+	log.Debugln("Publisher - Enabling publishing confirms.")
+	if err = p.Channel.Confirm(false); err != nil {
+		log.Errorln("Publisher - Channel could not be put into confirm mode ", err)
+		return
+	}
+
+	return
 }
 
 // Publish TODO
@@ -52,26 +70,6 @@ func (p *Publisher) PublishWithDelay(m *Message, delay int64) (err error) {
 	}
 	m.Delay = delay
 	return p.Publish(m)
-}
-
-func (p *Publisher) createChannel() (err error) {
-	p.LoadChannel()
-
-	go func() {
-		for res := range p.Channel.NotifyReturn(make(chan amqp.Return)) {
-			fmt.Println("Publisher - result ", res)
-		}
-	}()
-
-	p.confirms = p.Channel.NotifyPublish(make(chan amqp.Confirmation, 1))
-
-	log.Debugln("Publisher - Enabling publishing confirms.")
-	if err = p.Channel.Confirm(false); err != nil {
-		log.Errorln("Publisher - Channel could not be put into confirm mode ", err)
-		return
-	}
-
-	return
 }
 
 func (p *Publisher) createExchangeAndQueue(m *Message) (err error) {

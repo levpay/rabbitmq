@@ -34,7 +34,12 @@ func (b *Base) Config() (err error) {
 
 	b.QueuesLoaded = make(map[string]bool)
 
-	return b.Connect()
+	err = b.Connect()
+	if err != nil {
+		return
+	}
+
+	return b.createChannel()
 }
 
 // Connect TODO
@@ -56,8 +61,8 @@ func (b *Base) Connect() (err error) {
 	return
 }
 
-// LoadChannel TODO
-func (b *Base) LoadChannel() (err error) {
+// createChannel TODO
+func (b *Base) createChannel() (err error) {
 
 	if b.Channel != nil {
 		return
