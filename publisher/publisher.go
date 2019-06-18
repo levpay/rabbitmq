@@ -55,19 +55,8 @@ func (p *Publisher) PublishWithDelay(m *Message, delay int64) (err error) {
 }
 
 func (p *Publisher) createChannel() (err error) {
-	if p.Channel != nil {
-		return
-	}
-	log.Debugln("Publisher - Getting channel")
+	p.LoadChannel()
 
-	p.Channel, err = p.Conn.Channel()
-	if err != nil {
-		log.Errorln("Publisher - Failed to open a channel ", err)
-		return
-	}
-	log.Debugln("Publisher - Got Channel")
-
-	go func() { fmt.Printf("Publisher - Closing channel: %s", <-p.Channel.NotifyClose(make(chan *amqp.Error))) }()
 	go func() {
 		for res := range p.Channel.NotifyReturn(make(chan amqp.Return)) {
 			fmt.Println("Publisher - result ", res)

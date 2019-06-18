@@ -52,29 +52,8 @@ func New() (c *Consumer, err error) {
 	return c, c.createChannel()
 }
 
-// SimpleConsumer is a simple version of the Consumer that associates a function to receive messages from the queue
-func SimpleConsumer(exchangeName string, typeName string, actionFunction function) (err error) {
-	c, _ := New()
-	return c.Consume(exchangeName, "", typeName, "", actionFunction)
-}
-
 func (c *Consumer) createChannel() (err error) {
-	log.Debugln("Consumer - Getting channel")
-
-	if c.Channel != nil {
-		return
-	}
-
-	c.Channel, err = c.Conn.Channel()
-	if err != nil {
-		log.Errorln("Consumer - Failed to open a channel ", err)
-		return
-	}
-	log.Debugln("Consumer - Got Channel")
-
-	go func() {
-		fmt.Printf("Consumer - Closing channel: %s", <-c.Channel.NotifyClose(make(chan *amqp.Error)))
-	}()
+	c.LoadChannel()
 
 	err = c.Channel.Qos(c.prefetchCount, 0, false)
 	if err != nil {

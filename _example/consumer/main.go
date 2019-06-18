@@ -31,9 +31,7 @@ func main() {
 		log.Fatal("Failed to create publisher")
 	}
 
-	go consumer.SimpleConsumer("example", "", processMSG)
-
-	// go rabbitmq.SimpleConsumer("example", "SUCCESS", processMSGReturnSUCCESS)
+	go c.Consume("example", "", "", "", processMSG)
 
 	log.Println(" [*] Waiting for messages. To exit press CTRL+C")
 

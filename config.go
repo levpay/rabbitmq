@@ -56,6 +56,25 @@ func (b *Base) Connect() (err error) {
 	return
 }
 
+// LoadChannel TODO
+func (b *Base) LoadChannel() (err error) {
+
+	if b.Channel != nil {
+		return
+	}
+	log.Debugln("Getting channel")
+
+	b.Channel, err = b.Conn.Channel()
+	if err != nil {
+		log.Errorln(" Failed to open a channel ", err)
+		return
+	}
+	log.Debugln("Got Channel")
+
+	go func() { fmt.Printf(" Closing channel: %s", <-b.Channel.NotifyClose(make(chan *amqp.Error))) }()
+	return
+}
+
 // load sets the initial settings
 func load() (err error) {
 	if Config != nil {
