@@ -4,13 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
+	"github.com/nuveo/log"
 )
 
 type config struct {
-	URL string
-	Env string
+	URL   string
+	Env   string
+	Debug bool
 }
 
 // Config contains configs infos
@@ -31,6 +35,13 @@ func Load() (err error) {
 	if Config.Env == "" {
 		return errors.New("ENV is missing in the environments variables")
 	}
+
+	Config.Debug, err = strconv.ParseBool(os.Getenv("DEBUG"))
+	if err != nil {
+		return fmt.Errorf("Failed to convert DEBUG value: %s", err)
+	}
+	log.DebugMode = Config.Debug
+
 	return
 }
 
@@ -63,4 +74,14 @@ func GetConsumerTag(exchangeName string, queueSuffixName string, consumerSuffixT
 		consumerSuffixTag = uuid.New().String()
 	}
 	return fmt.Sprintf("%s.%s..%s.%s-consumer", Config.Env, exchangeName, queueSuffixName, consumerSuffixTag)
+}
+
+// LoadEnv loads a file with the environment variables
+func LoadEnv(filename string) {
+	err := godotenv.Load(filename)
+	if err != nil {
+		log.Fatal("Error loading .env.testing file ", err)
+	}
+
+	Load()
 }

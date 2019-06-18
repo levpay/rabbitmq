@@ -9,37 +9,12 @@ import (
 	"github.com/streadway/amqp"
 )
 
-// PublishWithDelay iss
-func (p *Publisher) PublishWithDelay(m *Message, delay int64) (err error) {
-	if delay == 0 {
-		delay = 10000
-	}
-	m.delay = delay
-	return p.Publish(m)
-}
-
 //Publisher iss
 type Publisher struct {
 	conn         *amqp.Connection
 	channel      *amqp.Channel
 	confirms     chan amqp.Confirmation
 	queuesLoaded map[string]bool
-	// queuesLoaded map[string]chan bool
-	// exchangeName      string
-	// queueSuffixName   string
-	// typeName          string
-	// consumerSuffixTag string
-	// actionFunction    function
-	// done              chan error
-
-	// exchangeFullName string
-	// queueFullName    string
-	// consumerTag      string
-	// bindingKey       string
-
-	// load chan bool
-	// threads     int
-	// doneThreads []chan bool
 }
 
 // New iss
@@ -49,7 +24,8 @@ func New() (p *Publisher, err error) {
 	rabbitmq.Load()
 
 	p = &Publisher{
-		queuesLoaded: make(map[string]bool)}
+		queuesLoaded: make(map[string]bool),
+	}
 
 	err = p.connect()
 	if err != nil {
@@ -57,6 +33,31 @@ func New() (p *Publisher, err error) {
 	}
 
 	return p, p.createChannel()
+}
+
+// Publish iss
+func (p *Publisher) Publish(m *Message) (err error) {
+
+	err = p.createExchangeAndQueue(m)
+	if err != nil {
+		return
+	}
+
+	err = p.createExchangeAndQueueDLX(m)
+	if err != nil {
+		return
+	}
+
+	return p.sendBody(m)
+}
+
+// PublishWithDelay iss
+func (p *Publisher) PublishWithDelay(m *Message, delay int64) (err error) {
+	if delay == 0 {
+		delay = 10000
+	}
+	m.Delay = delay
+	return p.Publish(m)
 }
 
 func (p *Publisher) connect() (err error) {
@@ -108,57 +109,44 @@ func (p *Publisher) createChannel() (err error) {
 	return
 }
 
-func (p *Publisher) createExchangeAndQueue(exchangeName, typeName string, delay int64) (exchangeFullName string, err error) {
-	wait := false
-	if delay != 0 {
-		wait = true
-		typeName = fmt.Sprintf("WAIT_%v", delay)
-	}
+func (p *Publisher) createExchangeAndQueue(m *Message) (err error) {
 
-	exchangeFullName = rabbitmq.GetExchangeFullName(exchangeName, typeName)
-
-	log.Debugln("Publisher - createExchangeAndQueue: ", exchangeFullName)
-
-	if p.queuesLoaded[exchangeFullName] {
+	if p.queuesLoaded[m.getExchangeFullName()] {
 		return
 	}
+	log.Debugln("Publisher - createExchangeAndQueue: ", m.getExchangeFullName())
 
-	log.Debugln("Publisher - Declaring Exchange: ", exchangeFullName)
-
-	err = p.channel.ExchangeDeclare(exchangeFullName, "fanout", true, false, false, false, nil)
+	err = p.channel.ExchangeDeclare(m.getExchangeFullName(), "fanout", true, false, false, false, nil)
 	if err != nil {
 		log.Errorln("Publisher - Failed to declare exchange ", err)
 		return
 	}
 
-	defaultQueueFullName := rabbitmq.GetQueueFullName(exchangeName, "", typeName)
-	err = createDefaultQueue(p.channel, exchangeName, exchangeFullName, defaultQueueFullName, typeName, wait)
+	err = p.createDefaultQueue(m)
 	if err != nil {
 		log.Errorln("Publisher - Failed to create default queue ", err)
 		return
 	}
-	log.Debugln("Publisher - Declared exchange: ", exchangeFullName)
+	log.Debugln("Publisher - Declared exchange: ", m.getExchangeFullName())
 
-	p.queuesLoaded[exchangeFullName] = true
+	p.queuesLoaded[m.getExchangeFullName()] = true
+	return
+}
+
+func (p *Publisher) createExchangeAndQueueDLX(m *Message) (err error) {
+	if !m.wait() {
+		return
+	}
+
+	err = p.createExchangeAndQueue(m.getMessageDLX())
+	if err != nil {
+		return
+	}
 
 	return
 }
 
-// Message iss
-type Message struct {
-	Exchange string
-	Type     string
-	delay    int64
-	Body     []byte
-}
-
-// Publish iss
-func (p *Publisher) Publish(m *Message) (err error) {
-
-	exchangeFullName, err := p.createExchangeAndQueue(m.Exchange, m.Type, m.delay)
-	if err != nil {
-		return
-	}
+func (p *Publisher) sendBody(m *Message) (err error) {
 
 	log.Debugln("Publishing ", len(m.Body), "  body ", string(m.Body))
 
@@ -168,11 +156,11 @@ func (p *Publisher) Publish(m *Message) (err error) {
 		ContentEncoding: "UTF-8",
 		Body:            m.Body,
 		DeliveryMode:    amqp.Persistent,
-		Expiration:      getExpiration(m.delay),
+		Expiration:      m.getExpiration(),
 		Priority:        0,
 	}
 
-	err = p.channel.Publish(exchangeFullName, "", true, false, msg)
+	err = p.channel.Publish(m.getExchangeFullName(), "", true, false, msg)
 	if err != nil {
 		return
 	}
@@ -190,21 +178,9 @@ func (p *Publisher) Publish(m *Message) (err error) {
 	return
 }
 
-func getExpiration(delay int64) (expiration string) {
-	expiration = strconv.FormatInt(delay, 10)
-	if expiration == "0" {
-		return ""
-	}
-	return expiration
-}
-
-func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFullName string, defaultQueueName string, typeName string, wait bool) (err error) {
-	args := make(amqp.Table)
-	if wait {
-		args["x-dead-letter-exchange"] = rabbitmq.GetExchangeFullName(exchangeName, "")
-	}
-
-	queue, err := channel.QueueDeclare(defaultQueueName, true, false, false, false, args)
+func (p *Publisher) createDefaultQueue(m *Message) (err error) {
+	defaultQueueName := rabbitmq.GetQueueFullName(m.Exchange, "", m.getType())
+	queue, err := p.channel.QueueDeclare(defaultQueueName, true, false, false, false, m.getArgs())
 	if err != nil {
 		log.Errorln("Publisher - Failed to declare a queue ", err)
 		return
@@ -213,5 +189,68 @@ func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFull
 	log.Debugln("Publisher - Declared Queue (",
 		queue.Name, " ", queue.Messages, " messages, ", queue.Consumers,
 		" consumers), binding to Exchange (key ", bindingKey, ")")
-	return channel.QueueBind(queue.Name, bindingKey, exchangeFullName, false, nil)
+	return p.channel.QueueBind(queue.Name, bindingKey, m.getExchangeFullName(), false, nil)
+}
+
+// Message iss
+type Message struct {
+	Exchange string
+	Type     string
+	Body     []byte
+	Delay    int64
+}
+
+func (m *Message) wait() bool {
+	return m.Delay != 0
+}
+
+func (m *Message) getType() string {
+	if m.wait() {
+		m.Type = fmt.Sprintf("WAIT_%v", m.Delay)
+	}
+	return m.Type
+}
+
+func (m *Message) getExpiration() string {
+	expiration := strconv.FormatInt(m.Delay, 10)
+	if expiration == "0" {
+		return ""
+	}
+	return expiration
+}
+
+func (m *Message) getArgs() (args amqp.Table) {
+	args = make(amqp.Table)
+
+	deadLetterExchange := m.getDeadLetterExchange()
+	if deadLetterExchange == "" {
+		return
+	}
+
+	args["x-dead-letter-exchange"] = deadLetterExchange
+	return
+}
+
+func (m *Message) getExchangeFullName() string {
+	return rabbitmq.GetExchangeFullName(m.Exchange, m.getType())
+}
+
+func (m *Message) getMessageDLX() *Message {
+	if !m.wait() {
+		return nil
+	}
+
+	return &Message{
+		Exchange: m.Exchange,
+		Type:     "",
+	}
+}
+
+func (m *Message) getDeadLetterExchange() string {
+	mDLX := m.getMessageDLX()
+	if mDLX == nil {
+		return ""
+	}
+
+	return mDLX.getExchangeFullName()
 }

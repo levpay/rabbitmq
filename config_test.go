@@ -2,37 +2,14 @@ package rabbitmq_test
 
 import (
 	"os"
-	"strconv"
 	"testing"
 
-	"github.com/joho/godotenv"
 	"github.com/levpay/rabbitmq"
-	"github.com/nuveo/log"
 )
 
 func TestMain(m *testing.M) {
-	testingEnv()
-	rabbitmq.Load()
+	rabbitmq.LoadEnv("./.env.testing")
 	os.Exit(m.Run())
-}
-
-func testingEnv() {
-	err := godotenv.Load(".env.testing")
-	if err != nil {
-		log.Fatal("Error loading .env.testing file")
-	}
-
-	debugS := os.Getenv("DEBUG")
-
-	if debugS != "" {
-		debug, err := strconv.ParseBool(debugS)
-		if err != nil {
-			log.Errorln("Failed to convert DEBUG value: ", err)
-			return
-		}
-
-		log.DebugMode = debug
-	}
 }
 
 func TestGetQueueFullNameWithReturn(t *testing.T) {
