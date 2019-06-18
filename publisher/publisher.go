@@ -9,40 +9,17 @@ import (
 	"github.com/streadway/amqp"
 )
 
-// SimplePublisher adds a message in the exchange without options.
-func SimplePublisher(exchangeName string, body []byte) (err error) {
-
-	// action := func(uint) error {
-	// var err error
-	return publisherBase(exchangeName, "", 0, body)
-	// }
-
-	// // you can also combine multiple Breakers into one
-	// interrupter := breaker.MultiplexTwo(
-	// 	breaker.BreakByTimeout(time.Minute),
-	// 	breaker.BreakBySignal(os.Interrupt),
-	// )
-	// defer interrupter.Close()
-
-	// return retry.Try(interrupter, action, strategy.Limit(3))
-}
-
-// Publisher adds a message in the exchange.
-func Publisher(exchangeName string, typeName string, body []byte) (err error) {
-	return publisherBase(exchangeName, typeName, 0, body)
-}
-
-//PublisherWithDelay adds a message in the waiting exchange.
-func PublisherWithDelay(exchangeName string, delay int64, body []byte) (err error) {
+// PublishWithDelay iss
+func (p *Publisher) PublishWithDelay(m *Message, delay int64) (err error) {
 	if delay == 0 {
 		delay = 10000
 	}
-	return publisherBase(exchangeName, "", delay, body)
+	m.delay = delay
+	return p.Publish(m)
 }
 
-// connection *
-
-type publisher struct {
+//Publisher iss
+type Publisher struct {
 	conn         *amqp.Connection
 	channel      *amqp.Channel
 	confirms     chan amqp.Confirmation
@@ -65,28 +42,24 @@ type publisher struct {
 	// doneThreads []chan bool
 }
 
-var p *publisher
-
-// LoadPublisher iss
-func LoadPublisher() (err error) {
+// New iss
+func New() (p *Publisher, err error) {
 	log.Println("LoadPublisher ...")
 
 	rabbitmq.Load()
 
-	p = &publisher{
-		queuesLoaded: make(map[string]bool),
-		// queuesLoaded: make(map[string]chan bool),
-	}
+	p = &Publisher{
+		queuesLoaded: make(map[string]bool)}
 
 	err = p.connect()
 	if err != nil {
 		return
 	}
 
-	return p.createChannel()
+	return p, p.createChannel()
 }
 
-func (p *publisher) connect() (err error) {
+func (p *Publisher) connect() (err error) {
 	if p.conn != nil {
 		return
 	}
@@ -104,7 +77,7 @@ func (p *publisher) connect() (err error) {
 	return
 }
 
-func (p *publisher) createChannel() (err error) {
+func (p *Publisher) createChannel() (err error) {
 	if p.channel != nil {
 		return
 	}
@@ -115,7 +88,6 @@ func (p *publisher) createChannel() (err error) {
 		log.Errorln("Publisher - Failed to open a channel ", err)
 		return
 	}
-	// defer p.channel.Close()
 	log.Debugln("Publisher - Got Channel")
 
 	go func() { fmt.Printf("Publisher - Closing channel: %s", <-p.channel.NotifyClose(make(chan *amqp.Error))) }()
@@ -136,7 +108,7 @@ func (p *publisher) createChannel() (err error) {
 	return
 }
 
-func (p *publisher) createExchangeAndQueue(exchangeName, typeName string, delay int64) (exchangeFullName string, err error) {
+func (p *Publisher) createExchangeAndQueue(exchangeName, typeName string, delay int64) (exchangeFullName string, err error) {
 	wait := false
 	if delay != 0 {
 		wait = true
@@ -172,32 +144,31 @@ func (p *publisher) createExchangeAndQueue(exchangeName, typeName string, delay 
 	return
 }
 
-func publisherBase(exchangeName string, typeName string, delay int64, body []byte) (err error) {
+// Message iss
+type Message struct {
+	Exchange string
+	Type     string
+	delay    int64
+	Body     []byte
+}
 
-	err = p.connect()
+// Publish iss
+func (p *Publisher) Publish(m *Message) (err error) {
+
+	exchangeFullName, err := p.createExchangeAndQueue(m.Exchange, m.Type, m.delay)
 	if err != nil {
 		return
 	}
 
-	err = p.createChannel()
-	if err != nil {
-		return
-	}
-
-	exchangeFullName, err := p.createExchangeAndQueue(exchangeName, typeName, delay)
-	if err != nil {
-		return
-	}
-
-	log.Debugln("Publishing ", len(body), "  body ", string(body))
+	log.Debugln("Publishing ", len(m.Body), "  body ", string(m.Body))
 
 	msg := amqp.Publishing{
 		Headers:         amqp.Table{},
 		ContentType:     "application/json",
 		ContentEncoding: "UTF-8",
-		Body:            body,
+		Body:            m.Body,
 		DeliveryMode:    amqp.Persistent,
-		Expiration:      getExpiration(delay),
+		Expiration:      getExpiration(m.delay),
 		Priority:        0,
 	}
 

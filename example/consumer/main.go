@@ -14,6 +14,8 @@ type testStruct struct {
 	Attempt int
 }
 
+var p *publisher.Publisher
+
 func processMSG(b []byte) (err error) {
 
 	log.Println("Received a msg: ", string(b))
@@ -28,15 +30,21 @@ func processMSG(b []byte) (err error) {
 
 	body, _ := json.Marshal(test)
 
+	msg := &publisher.Message{
+		Exchange: "example",
+		Body:     body,
+	}
+
 	switch test.Attempt {
 	case 1:
 		log.Println("Queuing with a delay of 5 seconds -> ", test.UUID)
-		err = publisher.PublisherWithDelay("example", 5000, body)
+		err = p.PublishWithDelay(msg, 5000)
 	case 2:
 		log.Println("Queuing with a delay of 10 seconds. -> ", test.UUID)
-		err = publisher.PublisherWithDelay("example", 10000, body)
+		p.PublishWithDelay(msg, 10000)
 	default:
-		err = publisher.Publisher("example", "SUCCESS", body)
+		msg.Type = "SUCCESS"
+		p.Publish(msg)
 		log.Println("Success -> ", test.UUID)
 	}
 
@@ -51,7 +59,7 @@ func main() {
 		log.Fatal("Failed to load consumer")
 	}
 
-	err = publisher.LoadPublisher()
+	p, err = publisher.New()
 	if err != nil {
 		log.Fatal("Failed to load publisher")
 	}

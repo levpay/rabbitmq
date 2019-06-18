@@ -14,9 +14,13 @@ type test struct {
 	Attempt int
 }
 
+var p *publisher.Publisher
+
 func main() {
 	log.DebugMode = true
-	err := publisher.LoadPublisher()
+
+	var err error
+	p, err = publisher.New()
 	if err != nil {
 		log.Fatal("Failed to load publisher")
 	}
@@ -49,8 +53,11 @@ func publish(i int) {
 
 	body, _ := json.Marshal(t)
 
-	// err := rabbitmq.PublisherWithDelay("example", 60000, body)
-	err := publisher.SimplePublisher("example", body)
+	msg := &publisher.Message{
+		Exchange: "example",
+		Body:     body,
+	}
+	err := p.Publish(msg)
 	if err != nil {
 		log.Errorln("Message not sent: ", err)
 	}
