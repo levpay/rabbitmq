@@ -22,12 +22,11 @@ func main() {
 	var err error
 	p, err = publisher.New()
 	if err != nil {
-		log.Fatal("Failed to load publisher")
+		log.Fatal("Failed to create publisher")
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 5; i++ {
 		go generation(i)
-		// time.Sleep(time.Millisecond * 100)
 	}
 
 	log.Println(" [*] Waiting for messages. To exit press CTRL+C")
@@ -37,9 +36,8 @@ func main() {
 
 func generation(e int) {
 	log.Println("generation: ", e)
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 5; i++ {
 		publish(i)
-		// time.Sleep(time.Millisecond * 200)
 		log.Println("publish at thread: ", e, i)
 	}
 }

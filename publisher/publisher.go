@@ -9,25 +9,19 @@ import (
 	"github.com/streadway/amqp"
 )
 
-//Publisher iss
+//Publisher TODO
 type Publisher struct {
-	conn         *amqp.Connection
-	channel      *amqp.Channel
-	confirms     chan amqp.Confirmation
-	queuesLoaded map[string]bool
+	rabbitmq.Base
+
+	confirms chan amqp.Confirmation
 }
 
-// New iss
+// New TODO
 func New() (p *Publisher, err error) {
-	log.Println("LoadPublisher ...")
+	log.Println("New Publisher ...")
 
-	rabbitmq.Load()
-
-	p = &Publisher{
-		queuesLoaded: make(map[string]bool),
-	}
-
-	err = p.connect()
+	p = &Publisher{}
+	err = p.Config()
 	if err != nil {
 		return
 	}
@@ -35,7 +29,7 @@ func New() (p *Publisher, err error) {
 	return p, p.createChannel()
 }
 
-// Publish iss
+// Publish TODO
 func (p *Publisher) Publish(m *Message) (err error) {
 
 	err = p.createExchangeAndQueue(m)
@@ -51,7 +45,7 @@ func (p *Publisher) Publish(m *Message) (err error) {
 	return p.sendBody(m)
 }
 
-// PublishWithDelay iss
+// PublishWithDelay TODO
 func (p *Publisher) PublishWithDelay(m *Message, delay int64) (err error) {
 	if delay == 0 {
 		delay = 10000
@@ -60,48 +54,30 @@ func (p *Publisher) PublishWithDelay(m *Message, delay int64) (err error) {
 	return p.Publish(m)
 }
 
-func (p *Publisher) connect() (err error) {
-	if p.conn != nil {
-		return
-	}
-
-	log.Debugln("Publisher - connecting ", rabbitmq.Config.URL)
-	p.conn, err = amqp.Dial(rabbitmq.Config.URL)
-	if err != nil {
-		log.Errorln("Publisher - Failed to connect to RabbitMQ ", err)
-		return
-	}
-	log.Debugln("Publisher - Got connection")
-
-	go func() { fmt.Printf("Publisher - Closing connection: %s", <-p.conn.NotifyClose(make(chan *amqp.Error))) }()
-
-	return
-}
-
 func (p *Publisher) createChannel() (err error) {
-	if p.channel != nil {
+	if p.Channel != nil {
 		return
 	}
 	log.Debugln("Publisher - Getting channel")
 
-	p.channel, err = p.conn.Channel()
+	p.Channel, err = p.Conn.Channel()
 	if err != nil {
 		log.Errorln("Publisher - Failed to open a channel ", err)
 		return
 	}
 	log.Debugln("Publisher - Got Channel")
 
-	go func() { fmt.Printf("Publisher - Closing channel: %s", <-p.channel.NotifyClose(make(chan *amqp.Error))) }()
+	go func() { fmt.Printf("Publisher - Closing channel: %s", <-p.Channel.NotifyClose(make(chan *amqp.Error))) }()
 	go func() {
-		for res := range p.channel.NotifyReturn(make(chan amqp.Return)) {
+		for res := range p.Channel.NotifyReturn(make(chan amqp.Return)) {
 			fmt.Println("Publisher - result ", res)
 		}
 	}()
 
-	p.confirms = p.channel.NotifyPublish(make(chan amqp.Confirmation, 1))
+	p.confirms = p.Channel.NotifyPublish(make(chan amqp.Confirmation, 1))
 
 	log.Debugln("Publisher - Enabling publishing confirms.")
-	if err = p.channel.Confirm(false); err != nil {
+	if err = p.Channel.Confirm(false); err != nil {
 		log.Errorln("Publisher - Channel could not be put into confirm mode ", err)
 		return
 	}
@@ -111,12 +87,12 @@ func (p *Publisher) createChannel() (err error) {
 
 func (p *Publisher) createExchangeAndQueue(m *Message) (err error) {
 
-	if p.queuesLoaded[m.getExchangeFullName()] {
+	if p.QueuesLoaded[m.getExchangeFullName()] {
 		return
 	}
 	log.Debugln("Publisher - createExchangeAndQueue: ", m.getExchangeFullName())
 
-	err = p.channel.ExchangeDeclare(m.getExchangeFullName(), "fanout", true, false, false, false, nil)
+	err = p.Channel.ExchangeDeclare(m.getExchangeFullName(), "fanout", true, false, false, false, nil)
 	if err != nil {
 		log.Errorln("Publisher - Failed to declare exchange ", err)
 		return
@@ -129,7 +105,7 @@ func (p *Publisher) createExchangeAndQueue(m *Message) (err error) {
 	}
 	log.Debugln("Publisher - Declared exchange: ", m.getExchangeFullName())
 
-	p.queuesLoaded[m.getExchangeFullName()] = true
+	p.QueuesLoaded[m.getExchangeFullName()] = true
 	return
 }
 
@@ -160,11 +136,11 @@ func (p *Publisher) sendBody(m *Message) (err error) {
 		Priority:        0,
 	}
 
-	err = p.channel.Publish(m.getExchangeFullName(), "", true, false, msg)
+	err = p.Channel.Publish(m.getExchangeFullName(), "", true, false, msg)
 	if err != nil {
 		return
 	}
-	log.Debugln("Publisher - waiting for confirmation of one publishing ", p.conn.IsClosed)
+	log.Debugln("Publisher - waiting for confirmation of one publishing ", p.Conn.IsClosed)
 
 	confirmed := <-p.confirms
 	log.Println("teste-2")
@@ -180,7 +156,7 @@ func (p *Publisher) sendBody(m *Message) (err error) {
 
 func (p *Publisher) createDefaultQueue(m *Message) (err error) {
 	defaultQueueName := rabbitmq.GetQueueFullName(m.Exchange, "", m.getType())
-	queue, err := p.channel.QueueDeclare(defaultQueueName, true, false, false, false, m.getArgs())
+	queue, err := p.Channel.QueueDeclare(defaultQueueName, true, false, false, false, m.getArgs())
 	if err != nil {
 		log.Errorln("Publisher - Failed to declare a queue ", err)
 		return
@@ -189,10 +165,10 @@ func (p *Publisher) createDefaultQueue(m *Message) (err error) {
 	log.Debugln("Publisher - Declared Queue (",
 		queue.Name, " ", queue.Messages, " messages, ", queue.Consumers,
 		" consumers), binding to Exchange (key ", bindingKey, ")")
-	return p.channel.QueueBind(queue.Name, bindingKey, m.getExchangeFullName(), false, nil)
+	return p.Channel.QueueBind(queue.Name, bindingKey, m.getExchangeFullName(), false, nil)
 }
 
-// Message iss
+// Message TODO
 type Message struct {
 	Exchange string
 	Type     string

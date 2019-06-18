@@ -15,6 +15,30 @@ type testStruct struct {
 }
 
 var p *publisher.Publisher
+var c *consumer.Consumer
+
+func main() {
+	log.DebugMode = true
+
+	var err error
+	c, err = consumer.New()
+	if err != nil {
+		log.Fatal("Failed to create consumer")
+	}
+
+	p, err = publisher.New()
+	if err != nil {
+		log.Fatal("Failed to create publisher")
+	}
+
+	go consumer.SimpleConsumer("example", "", processMSG)
+
+	// go rabbitmq.SimpleConsumer("example", "SUCCESS", processMSGReturnSUCCESS)
+
+	log.Println(" [*] Waiting for messages. To exit press CTRL+C")
+
+	<-make(chan bool)
+}
 
 func processMSG(b []byte) (err error) {
 
@@ -49,28 +73,6 @@ func processMSG(b []byte) (err error) {
 	}
 
 	return
-}
-
-func main() {
-	log.DebugMode = true
-	// rabbitmq.Load()
-	err := consumer.LoadConsumer()
-	if err != nil {
-		log.Fatal("Failed to load consumer")
-	}
-
-	p, err = publisher.New()
-	if err != nil {
-		log.Fatal("Failed to load publisher")
-	}
-
-	go consumer.SimpleConsumer("example", "", processMSG)
-
-	// go rabbitmq.SimpleConsumer("example", "SUCCESS", processMSGReturnSUCCESS)
-
-	log.Println(" [*] Waiting for messages. To exit press CTRL+C")
-
-	<-make(chan bool)
 }
 
 func processMSGReturnSUCCESS(b []byte) (err error) {

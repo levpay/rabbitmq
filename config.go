@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/nuveo/log"
+	"github.com/streadway/amqp"
 )
 
 type config struct {
@@ -20,8 +21,43 @@ type config struct {
 // Config contains configs infos
 var Config *config
 
-// Load sets the initial settings
-func Load() (err error) {
+// Base TODO
+type Base struct {
+	Conn         *amqp.Connection
+	Channel      *amqp.Channel
+	QueuesLoaded map[string]bool
+}
+
+// Config TODO
+func (b *Base) Config() (err error) {
+	load()
+
+	b.QueuesLoaded = make(map[string]bool)
+
+	return b.Connect()
+}
+
+// Connect TODO
+func (b *Base) Connect() (err error) {
+	if b.Conn != nil {
+		return
+	}
+
+	log.Debugln("connecting ", Config.URL)
+	b.Conn, err = amqp.Dial(Config.URL)
+	if err != nil {
+		log.Errorln("Failed to connect to RabbitMQ ", err)
+		return
+	}
+	log.Debugln("Got connection")
+
+	go func() { fmt.Printf("Closing connection: %s", <-b.Conn.NotifyClose(make(chan *amqp.Error))) }()
+
+	return
+}
+
+// load sets the initial settings
+func load() (err error) {
 	if Config != nil {
 		return
 	}
@@ -83,5 +119,5 @@ func LoadEnv(filename string) {
 		log.Fatal("Error loading .env.testing file ", err)
 	}
 
-	Load()
+	load()
 }
