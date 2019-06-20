@@ -198,7 +198,10 @@ func (b *Base) CreateExchangeAndQueue(d ideclare) (err error) {
 }
 
 func (b *Base) createQueueAndBinding(d ideclare) (err error) {
-	queue, err := b.Channel.QueueDeclare(d.GetQueueFullName(), true, false, false, false, d.GetQueueArgs())
+	args := d.GetQueueArgs()
+	args["x-max-priority"] = 10
+
+	queue, err := b.Channel.QueueDeclare(d.GetQueueFullName(), true, false, false, false, args)
 	if err != nil {
 		log.Errorln("Failed to declare a queue: ", err)
 		return

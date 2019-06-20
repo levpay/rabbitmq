@@ -85,7 +85,7 @@ func (p *Publisher) handle(d *Declare) (err error) {
 		Body:            d.Body,
 		DeliveryMode:    amqp.Persistent,
 		Expiration:      d.expiration,
-		Priority:        0,
+		Priority:        d.Priority,
 	}
 
 	err = p.Channel.Publish(d.exchangeFullName, "", true, false, msg)
@@ -144,6 +144,7 @@ type Declare struct {
 	Body             []byte
 	Delay            int64
 	MaxRetries       int
+	Priority         uint8
 	exchangeFullName string
 	queueFullName    string
 	wait             bool
