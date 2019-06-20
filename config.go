@@ -28,6 +28,10 @@ type queuesLoaded struct {
 	m map[string]bool
 }
 
+type iAdapter interface {
+	PosCreateChannel(*amqp.Channel) error
+}
+
 // Base TODO
 type Base struct {
 	Conn         *amqp.Connection
@@ -35,20 +39,17 @@ type Base struct {
 	Closed       bool
 	ErrorConn    chan *amqp.Error
 	ErrorChannel chan *amqp.Error
-	isPublisher  bool
-	Confirms     chan amqp.Confirmation
+	Adapter      iAdapter
 	queuesLoaded queuesLoaded
 	reconnecting bool
 
 	FnReconnected func() error
-	PrefetchCount int
 }
 
 // Config TODO
-func (b *Base) Config(isPublisher bool) (err error) {
+func (b *Base) Config() (err error) {
 	load()
 
-	b.isPublisher = isPublisher
 	b.queuesLoaded = queuesLoaded{
 		m: make(map[string]bool),
 	}
@@ -84,33 +85,7 @@ func (b *Base) Connect() (err error) {
 	b.ErrorChannel = make(chan *amqp.Error)
 	b.Channel.NotifyClose(b.ErrorChannel)
 
-	err = b.notifyPublish()
-	if err != nil {
-		return
-	}
-
-	return b.qos()
-}
-
-func (b *Base) notifyPublish() (err error) {
-	if !b.isPublisher {
-		return
-	}
-	go func() {
-		for res := range b.Channel.NotifyReturn(make(chan amqp.Return)) {
-			fmt.Println("Notify Return ", res)
-		}
-	}()
-
-	b.Confirms = b.Channel.NotifyPublish(make(chan amqp.Confirmation, 1))
-
-	log.Debugln("Enabling publishing confirms")
-	err = b.Channel.Confirm(false)
-	if err != nil {
-		log.Errorln("Channel could not be put into confirm mode ", err)
-		return
-	}
-	return
+	return b.Adapter.PosCreateChannel(b.Channel)
 }
 
 //WaitIfReconnecting TODO
@@ -122,19 +97,6 @@ func (b *Base) WaitIfReconnecting() {
 		}
 		return
 	}
-}
-
-func (b *Base) qos() (err error) {
-	if b.isPublisher {
-		return
-	}
-
-	err = b.Channel.Qos(b.PrefetchCount, 0, false)
-	if err != nil {
-		log.Errorln("Error setting qos: ", err)
-		return
-	}
-	return
 }
 
 func (b *Base) reconnector(errConnChan chan *amqp.Error) {

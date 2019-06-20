@@ -12,6 +12,7 @@ import (
 //Publisher TODO
 type Publisher struct {
 	rabbitmq.Base
+	confirms chan amqp.Confirmation
 }
 
 // New TODO
@@ -19,12 +20,10 @@ func New() (p *Publisher, err error) {
 	log.Println("New Publisher ...")
 
 	p = &Publisher{}
-	err = p.Config(true)
-	if err != nil {
-		return
+	p.Adapter = &adapter{
+		publisher: p,
 	}
-
-	return
+	return p, p.Config()
 }
 
 func (p *Publisher) publishWithoutRetry(d *Declare) (err error) {
@@ -102,7 +101,7 @@ func (p *Publisher) handle(d *Declare) (err error) {
 	}
 	log.Debugln("Publisher - waiting for confirmation of one publishing")
 
-	confirmed := <-p.Confirms
+	confirmed := <-p.confirms
 	if !confirmed.Ack {
 		msg := fmt.Sprintf("Publisher - failed delivery of delivery tag: %d", confirmed.DeliveryTag)
 		log.Errorln(msg)
@@ -110,6 +109,29 @@ func (p *Publisher) handle(d *Declare) (err error) {
 	}
 	log.Debugln("Publisher - confirmed delivery with delivery tag: ", confirmed.DeliveryTag)
 
+	return
+}
+
+type adapter struct {
+	publisher *Publisher
+}
+
+func (a *adapter) PosCreateChannel(c *amqp.Channel) (err error) {
+
+	go func() {
+		for res := range c.NotifyReturn(make(chan amqp.Return)) {
+			fmt.Println("Notify Return ", res)
+		}
+	}()
+
+	a.publisher.confirms = c.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+	log.Debugln("Enabling publishing confirms")
+	err = c.Confirm(false)
+	if err != nil {
+		log.Errorln("Channel could not be put into confirm mode ", err)
+		return
+	}
 	return
 }
 

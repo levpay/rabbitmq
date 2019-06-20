@@ -19,14 +19,16 @@ type function func([]byte) error
 var errAcknowledgerNil = fmt.Errorf("Acknowledger is nil")
 
 // New TODO
-func New(threads, prefetchCount int) (c *Consumer, err error) {
+func New(threads, preFetchCount int) (c *Consumer, err error) {
 	log.Println("New Consumer...")
 
 	c = &Consumer{
 		threads: threads,
 	}
-	c.PrefetchCount = prefetchCount
-	return c, c.Config(false)
+	c.Adapter = &adapter{
+		preFetchCount: preFetchCount,
+	}
+	return c, c.Config()
 }
 
 // Consume associates a function to receive messages from the queue.
@@ -101,6 +103,19 @@ func (c *Consumer) callingExternalFunc(d *Declare, i int) {
 		}
 		log.Println("Consumer - Committed")
 	}
+}
+
+type adapter struct {
+	preFetchCount int
+}
+
+func (a *adapter) PosCreateChannel(c *amqp.Channel) (err error) {
+	err = c.Qos(a.preFetchCount, 0, false)
+	if err != nil {
+		log.Errorln("Error setting qos: ", err)
+		return
+	}
+	return
 }
 
 // Declare TODO
