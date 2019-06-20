@@ -30,6 +30,14 @@ type queuesLoaded struct {
 
 type iAdapter interface {
 	PosCreateChannel(*amqp.Channel) error
+	PosReconnect() error
+}
+
+type ideclare interface {
+	GetExchangeFullName() string
+	GetQueueFullName() string
+	GetQueueArgs() amqp.Table
+	Prepare()
 }
 
 // Base TODO
@@ -42,8 +50,6 @@ type Base struct {
 	Adapter      iAdapter
 	queuesLoaded queuesLoaded
 	reconnecting bool
-
-	FnReconnected func() error
 }
 
 // Config TODO
@@ -133,22 +139,7 @@ func (b *Base) TryReconnect() (err error) {
 	}
 	log.Println("Reconnected: ", b.Conn.IsClosed())
 
-	return b.callFnReconnected()
-}
-
-func (b *Base) callFnReconnected() (err error) {
-
-	if b.FnReconnected == nil {
-		return
-	}
-
-	err = b.FnReconnected()
-	if err != nil {
-		log.Errorln("Error calling func of reconnected", err)
-		return
-	}
-
-	return
+	return b.Adapter.PosReconnect()
 }
 
 // createChannel TODO
@@ -165,10 +156,12 @@ func (b *Base) createChannel() (err error) {
 	return
 }
 
-type ideclare interface {
-	GetExchangeFullName() string
-	GetQueueFullName() string
-	GetQueueArgs() amqp.Table
+// Prepare TODO
+func (b *Base) Prepare(d ideclare) (err error) {
+	b.WaitIfReconnecting()
+	d.Prepare()
+
+	return b.CreateExchangeAndQueue(d)
 }
 
 // CreateExchangeAndQueue TODO

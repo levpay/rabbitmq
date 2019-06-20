@@ -27,10 +27,7 @@ func New() (p *Publisher, err error) {
 }
 
 func (p *Publisher) publishWithoutRetry(d *Declare) (err error) {
-	p.WaitIfReconnecting()
-	d.prepare()
-
-	err = p.CreateExchangeAndQueue(d)
+	err = p.Prepare(d)
 	if err != nil {
 		return
 	}
@@ -135,6 +132,11 @@ func (a *adapter) PosCreateChannel(c *amqp.Channel) (err error) {
 	return
 }
 
+func (a *adapter) PosReconnect() error {
+	log.Debugln("Publisher - reconnected")
+	return nil
+}
+
 // Declare TODO
 type Declare struct {
 	Exchange         string
@@ -149,7 +151,8 @@ type Declare struct {
 	queueArgs        amqp.Table
 }
 
-func (d *Declare) prepare() {
+//Prepare TODO
+func (d *Declare) Prepare() {
 	d.wait = d.Delay != 0
 
 	if d.wait {
@@ -186,7 +189,7 @@ func (d *Declare) getDeclareDLX() *Declare {
 		Exchange: d.Exchange,
 		Type:     "",
 	}
-	dDLX.prepare()
+	dDLX.Prepare()
 
 	return dDLX
 }

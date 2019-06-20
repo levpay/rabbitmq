@@ -17,7 +17,7 @@ func TestDeclareWait(t *testing.T) {
 		m := &Declare{
 			Delay: 1000,
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.wait
 		expected := true
@@ -40,7 +40,7 @@ func TestDeclareGetExpiration(t *testing.T) {
 		m := &Declare{
 			Delay: 1000,
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.expiration
 		expected := "1000"
@@ -52,7 +52,7 @@ func TestDeclareGetExpiration(t *testing.T) {
 		m := &Declare{
 			Delay: 0,
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.expiration
 		expected := ""
@@ -68,7 +68,7 @@ func TestDeclareGetArgs(t *testing.T) {
 			Exchange: "queue-of-destination",
 			Delay:    1000,
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.queueArgs["x-dead-letter-exchange"]
 		expected := "testing.queue-of-destination-exchange"
@@ -80,7 +80,7 @@ func TestDeclareGetArgs(t *testing.T) {
 		m := &Declare{
 			Exchange: "queue-of-destination",
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.queueArgs["x-dead-letter-exchange"]
 		var expected interface{}
@@ -96,7 +96,7 @@ func TestDeclareGetType(t *testing.T) {
 			Type:  "SUCCESS",
 			Delay: 1000,
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.Type
 		expected := "WAIT_1000"
@@ -108,7 +108,7 @@ func TestDeclareGetType(t *testing.T) {
 		m := &Declare{
 			Type: "SUCCESS",
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.Type
 		expected := "SUCCESS"
@@ -118,7 +118,7 @@ func TestDeclareGetType(t *testing.T) {
 	})
 	t.Run("Test Declare.getType = empty", func(t *testing.T) {
 		m := &Declare{}
-		m.prepare()
+		m.Prepare()
 
 		result := m.Type
 		expected := ""
@@ -131,7 +131,7 @@ func TestDeclareGetType(t *testing.T) {
 func TestDeclareGetDeclareDLX(t *testing.T) {
 	t.Run("Test Declare.getDeclareDLX = nil", func(t *testing.T) {
 		m := &Declare{}
-		m.prepare()
+		m.Prepare()
 
 		result := m.getDeclareDLX()
 		var expected *Declare
@@ -144,7 +144,7 @@ func TestDeclareGetDeclareDLX(t *testing.T) {
 			Exchange: "test",
 			Delay:    100,
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.getDeclareDLX().exchangeFullName
 		expected := "testing.test-exchange"
@@ -159,7 +159,7 @@ func TestDeclareGetDeadLetterExchange(t *testing.T) {
 		m := &Declare{
 			Exchange: "test",
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.getDLXExchangeName()
 		expected := ""
@@ -172,7 +172,7 @@ func TestDeclareGetDeadLetterExchange(t *testing.T) {
 			Exchange: "test",
 			Delay:    1000,
 		}
-		m.prepare()
+		m.Prepare()
 
 		result := m.getDLXExchangeName()
 		expected := "testing.test-exchange"

@@ -11,7 +11,8 @@ import (
 // Consumer TODO
 type Consumer struct {
 	rabbitmq.Base
-	threads int
+	threads  int
+	declares []*Declare
 }
 
 type function func([]byte) error
@@ -27,27 +28,20 @@ func New(threads, preFetchCount int) (c *Consumer, err error) {
 	}
 	c.Adapter = &adapter{
 		preFetchCount: preFetchCount,
+		consumer:      c,
 	}
 	return c, c.Config()
 }
 
 // Consume associates a function to receive messages from the queue.
 func (c *Consumer) Consume(d *Declare) (err error) {
-	d.prepare()
-
-	err = c.CreateExchangeAndQueue(d)
+	c.declares = append(c.declares, d)
+	err = c.Prepare(d)
 	if err != nil {
 		return
 	}
 
-	c.FnReconnected = func() (err error) {
-		err = c.announceQueue(d)
-		if err != nil {
-			return
-		}
-		return
-	}
-	err = c.FnReconnected()
+	err = c.announceQueue(d)
 	if err != nil {
 		return
 	}
@@ -107,6 +101,7 @@ func (c *Consumer) callingExternalFunc(d *Declare, i int) {
 
 type adapter struct {
 	preFetchCount int
+	consumer      *Consumer
 }
 
 func (a *adapter) PosCreateChannel(c *amqp.Channel) (err error) {
@@ -114,6 +109,17 @@ func (a *adapter) PosCreateChannel(c *amqp.Channel) (err error) {
 	if err != nil {
 		log.Errorln("Error setting qos: ", err)
 		return
+	}
+	return
+}
+
+func (a *adapter) PosReconnect() (err error) {
+	log.Debugln("Consumer - reconnected")
+	for _, d := range a.consumer.declares {
+		err = a.consumer.announceQueue(d)
+		if err != nil {
+			return
+		}
 	}
 	return
 }
@@ -132,7 +138,8 @@ type Declare struct {
 	deliveries  <-chan amqp.Delivery
 }
 
-func (d *Declare) prepare() {
+// Prepare TODO
+func (d *Declare) Prepare() {
 	d.exchangeFullName = rabbitmq.GetExchangeFullName(d.Exchange, d.Type)
 	d.queueFullName = rabbitmq.GetQueueFullName(d.Exchange, d.QueueSuffix, d.Type)
 	d.consumerTag = rabbitmq.GetConsumerTag(d.Exchange, d.QueueSuffix, "")
