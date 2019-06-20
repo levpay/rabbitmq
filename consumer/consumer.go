@@ -175,5 +175,5 @@ func (d *Declare) GetQueueFullName() string {
 
 // GetQueueArgs TODO
 func (d *Declare) GetQueueArgs() amqp.Table {
-	return nil
+	return make(amqp.Table)
 }

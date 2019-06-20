@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/levpay/rabbitmq/consumer"
@@ -22,7 +21,7 @@ func main() {
 	log.DebugMode = true
 
 	var err error
-	c, err = consumer.New(2, 1)
+	c, err = consumer.New(2, 2)
 	if err != nil {
 		log.Fatal("Failed to create consumer")
 	}
@@ -38,37 +37,21 @@ func main() {
 	}
 	go c.Consume(d)
 
-	go func() {
-		time.Sleep(2000 * time.Millisecond)
-		for i := 0; i < 10; i++ {
-			time.Sleep(2000 * time.Millisecond)
-			// if !p.Conn.IsClosed() {
-			log.Errorln("Test close")
-			c.Conn.Close()
-			// p.ErrorChannel <- amqp.ErrClosed
-			// p.ErrorConn <- amqp.ErrClosed
-			// p.ErrorChannel <- amqp.ErrClosed
-			// ErrorChannel
-			// <-p.Reconnected
-
-			time.Sleep(2000 * time.Millisecond)
-			// }
-		}
-	}()
+	// go func() {
+	// 	time.Sleep(2000 * time.Millisecond)
+	// 	for i := 0; i < 10; i++ {
+	// 		time.Sleep(2000 * time.Millisecond)
+	// 		c.Conn.Close()
+	// 		time.Sleep(2000 * time.Millisecond)
+	// 	}
+	// }()
 
 	// go func() {
 	// 	time.Sleep(7657 * time.Millisecond)
 	// 	for i := 0; i < 10; i++ {
 	// 		time.Sleep(1252 * time.Millisecond)
-	// 		// if !p.Conn.IsClosed() {
 	// 		log.Errorln("Test close")
 	// 		p.Conn.Close()
-	// 		// p.ErrorChannel <- amqp.ErrClosed
-	// 		// p.ErrorConn <- amqp.ErrClosed
-	// 		// p.ErrorChannel <- amqp.ErrClosed
-	// 		// ErrorChannel
-	// 		// <-p.Reconnected
-
 	// 		time.Sleep(3245 * time.Millisecond)
 	// 		// }
 	// 	}
@@ -100,11 +83,13 @@ func processMSG(b []byte) (err error) {
 
 	switch test.Attempt {
 	case 1:
-		log.Println("Queuing with a delay of 5 seconds -> ", test.UUID)
-		err = p.PublishWithDelay(d, 5000)
+		log.Println("Queuing with a delay of 30 seconds -> ", test.UUID)
+		d.Priority = 1
+		err = p.PublishWithDelay(d, 30000)
 	case 2:
-		log.Println("Queuing with a delay of 10 seconds. -> ", test.UUID)
-		p.PublishWithDelay(d, 10000)
+		d.Priority = 2
+		log.Println("Queuing with a delay of 60 seconds. -> ", test.UUID)
+		p.PublishWithDelay(d, 60000)
 	default:
 		d.Type = "SUCCESS"
 		p.Publish(d)
