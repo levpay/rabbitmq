@@ -16,19 +16,16 @@ type consumer struct {
 	queueSuffixName   string
 	typeName          string
 	consumerSuffixTag string
-	actionFunction    function
+	actionFunction    func([]byte) error
 	done              chan error
-
-	exchangeFullName string
-	queueFullName    string
-	consumerTag      string
-	bindingKey       string
+	exchangeFullName  string
+	queueFullName     string
+	consumerTag       string
+	bindingKey        string
 }
 
-type function func([]byte) error
-
 // Consumer associates a function to receive messages from the queue.
-func Consumer(exchangeName, queueSuffixName, typeName, consumerSuffixTag string, actionFunction function) (err error) {
+func Consumer(exchangeName, queueSuffixName, typeName, consumerSuffixTag string, actionFunction func([]byte) error) (err error) {
 	log.Println("Creating a new consumer")
 
 	c := &consumer{
@@ -42,7 +39,7 @@ func Consumer(exchangeName, queueSuffixName, typeName, consumerSuffixTag string,
 }
 
 // SimpleConsumer is a simple version of the Consumer that associates a function to receive messages from the queue
-func SimpleConsumer(exchangeName string, typeName string, actionFunction function) (err error) {
+func SimpleConsumer(exchangeName string, typeName string, actionFunction func([]byte) error) (err error) {
 	return Consumer(exchangeName, "", typeName, "", actionFunction)
 }
 
@@ -154,10 +151,9 @@ func (c *consumer) callingExternalFunc(deliveries <-chan amqp.Delivery) {
 		err := c.actionFunction(d.Body)
 		if err != nil {
 			log.Errorln("Failed to deliver the body ", err)
+			continue
 		}
-		if err == nil {
-			d.Ack(false)
-			log.Println("Committed")
-		}
+		d.Ack(false)
+		log.Println("Committed")
 	}
 }
