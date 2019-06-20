@@ -12,8 +12,6 @@ import (
 //Publisher TODO
 type Publisher struct {
 	rabbitmq.Base
-
-	confirms chan amqp.Confirmation
 }
 
 // New TODO
@@ -21,87 +19,58 @@ func New() (p *Publisher, err error) {
 	log.Println("New Publisher ...")
 
 	p = &Publisher{}
-	return p, p.prepare()
-}
-
-func (p *Publisher) prepare() (err error) {
-	err = p.Config()
+	err = p.Config(true)
 	if err != nil {
-		return
-	}
-
-	go func() {
-		for res := range p.Channel.NotifyReturn(make(chan amqp.Return)) {
-			fmt.Println("Publisher - result ", res)
-		}
-	}()
-
-	p.confirms = p.Channel.NotifyPublish(make(chan amqp.Confirmation, 1))
-
-	log.Debugln("Publisher - Enabling publishing confirms.")
-	if err = p.Channel.Confirm(false); err != nil {
-		log.Errorln("Publisher - Channel could not be put into confirm mode ", err)
 		return
 	}
 
 	return
 }
 
-// Publish TODO
-func (p *Publisher) Publish(m *Message) (err error) {
+func (p *Publisher) publishWithoutRetry(d *Declare) (err error) {
+	p.WaitIfReconnecting()
+	d.prepare()
 
-	err = p.createExchangeAndQueue(m)
+	err = p.CreateExchangeAndQueue(d)
 	if err != nil {
 		return
 	}
 
-	err = p.createExchangeAndQueueDLX(m)
+	err = p.createExchangeAndQueueDLX(d)
 	if err != nil {
 		return
 	}
 
-	return p.sendBody(m)
+	return p.handle(d)
 }
 
 // PublishWithDelay TODO
-func (p *Publisher) PublishWithDelay(m *Message, delay int64) (err error) {
+func (p *Publisher) PublishWithDelay(d *Declare, delay int64) (err error) {
 	if delay == 0 {
 		delay = 10000
 	}
-	m.Delay = delay
-	return p.Publish(m)
+	d.Delay = delay
+	return p.Publish(d)
 }
 
-func (p *Publisher) createExchangeAndQueue(m *Message) (err error) {
-
-	if p.QueuesLoaded[m.getExchangeFullName()] {
-		return
+// Publish TODO
+func (p *Publisher) Publish(d *Declare) (err error) {
+	for i := 0; i < d.GetMaxRetries(); i++ {
+		err = p.publishWithoutRetry(d)
+		if err == nil {
+			return
+		}
 	}
-	log.Debugln("Publisher - createExchangeAndQueue: ", m.getExchangeFullName())
-
-	err = p.Channel.ExchangeDeclare(m.getExchangeFullName(), "fanout", true, false, false, false, nil)
-	if err != nil {
-		log.Errorln("Publisher - Failed to declare exchange ", err)
-		return
-	}
-
-	err = p.createDefaultQueue(m)
-	if err != nil {
-		log.Errorln("Publisher - Failed to create default queue ", err)
-		return
-	}
-	log.Debugln("Publisher - Declared exchange: ", m.getExchangeFullName())
-
-	p.QueuesLoaded[m.getExchangeFullName()] = true
 	return
 }
 
-func (p *Publisher) createExchangeAndQueueDLX(m *Message) (err error) {
-	if !m.wait() {
+func (p *Publisher) createExchangeAndQueueDLX(d *Declare) (err error) {
+	if !d.wait {
 		return
 	}
 
-	err = p.createExchangeAndQueue(m.getMessageDLX())
+	dDLX := d.getDeclareDLX()
+	err = p.CreateExchangeAndQueue(dDLX)
 	if err != nil {
 		return
 	}
@@ -109,28 +78,31 @@ func (p *Publisher) createExchangeAndQueueDLX(m *Message) (err error) {
 	return
 }
 
-func (p *Publisher) sendBody(m *Message) (err error) {
+func (p *Publisher) handle(d *Declare) (err error) {
 
-	log.Debugln("Publishing ", len(m.Body), "  body ", string(m.Body))
+	log.Debugln("Publishing ", len(d.Body), "  body ", string(d.Body))
 
 	msg := amqp.Publishing{
 		Headers:         amqp.Table{},
 		ContentType:     "application/json",
 		ContentEncoding: "UTF-8",
-		Body:            m.Body,
+		Body:            d.Body,
 		DeliveryMode:    amqp.Persistent,
-		Expiration:      m.getExpiration(),
+		Expiration:      d.expiration,
 		Priority:        0,
 	}
 
-	err = p.Channel.Publish(m.getExchangeFullName(), "", true, false, msg)
+	err = p.Channel.Publish(d.exchangeFullName, "", true, false, msg)
 	if err != nil {
+		log.Errorln("Publisher - Failed to publish the message ", err)
+		if err.Error() == amqp.ErrClosed.Error() {
+			p.TryReconnect()
+		}
 		return
 	}
-	log.Debugln("Publisher - waiting for confirmation of one publishing ", p.Conn.IsClosed)
+	log.Debugln("Publisher - waiting for confirmation of one publishing")
 
-	confirmed := <-p.confirms
-	log.Println("teste-2")
+	confirmed := <-p.Confirms
 	if !confirmed.Ack {
 		msg := fmt.Sprintf("Publisher - failed delivery of delivery tag: %d", confirmed.DeliveryTag)
 		log.Errorln(msg)
@@ -141,79 +113,90 @@ func (p *Publisher) sendBody(m *Message) (err error) {
 	return
 }
 
-func (p *Publisher) createDefaultQueue(m *Message) (err error) {
-	defaultQueueName := rabbitmq.GetQueueFullName(m.Exchange, "", m.getType())
-	queue, err := p.Channel.QueueDeclare(defaultQueueName, true, false, false, false, m.getArgs())
-	if err != nil {
-		log.Errorln("Publisher - Failed to declare a queue ", err)
-		return
+// Declare TODO
+type Declare struct {
+	Exchange         string
+	Type             string
+	Body             []byte
+	Delay            int64
+	MaxRetries       int
+	exchangeFullName string
+	queueFullName    string
+	wait             bool
+	expiration       string
+	queueArgs        amqp.Table
+}
+
+func (d *Declare) prepare() {
+	d.wait = d.Delay != 0
+
+	if d.wait {
+		d.Type = fmt.Sprintf("WAIT_%v", d.Delay)
 	}
-	bindingKey := fmt.Sprintf("%s-key", queue.Name)
-	log.Debugln("Publisher - Declared Queue (",
-		queue.Name, " ", queue.Messages, " messages, ", queue.Consumers,
-		" consumers), binding to Exchange (key ", bindingKey, ")")
-	return p.Channel.QueueBind(queue.Name, bindingKey, m.getExchangeFullName(), false, nil)
-}
 
-// Message TODO
-type Message struct {
-	Exchange string
-	Type     string
-	Body     []byte
-	Delay    int64
-}
-
-func (m *Message) wait() bool {
-	return m.Delay != 0
-}
-
-func (m *Message) getType() string {
-	if m.wait() {
-		m.Type = fmt.Sprintf("WAIT_%v", m.Delay)
+	d.expiration = strconv.FormatInt(d.Delay, 10)
+	if d.expiration == "0" {
+		d.expiration = ""
 	}
-	return m.Type
+
+	d.exchangeFullName = rabbitmq.GetExchangeFullName(d.Exchange, d.Type)
+	d.queueFullName = rabbitmq.GetQueueFullName(d.Exchange, "", d.Type)
+	d.setQueueArgs()
 }
 
-func (m *Message) getExpiration() string {
-	expiration := strconv.FormatInt(m.Delay, 10)
-	if expiration == "0" {
-		return ""
-	}
-	return expiration
-}
+func (d *Declare) setQueueArgs() {
+	d.queueArgs = make(amqp.Table)
 
-func (m *Message) getArgs() (args amqp.Table) {
-	args = make(amqp.Table)
-
-	deadLetterExchange := m.getDeadLetterExchange()
+	deadLetterExchange := d.getDLXExchangeName()
 	if deadLetterExchange == "" {
 		return
 	}
 
-	args["x-dead-letter-exchange"] = deadLetterExchange
-	return
+	d.queueArgs["x-dead-letter-exchange"] = deadLetterExchange
 }
 
-func (m *Message) getExchangeFullName() string {
-	return rabbitmq.GetExchangeFullName(m.Exchange, m.getType())
-}
-
-func (m *Message) getMessageDLX() *Message {
-	if !m.wait() {
+func (d *Declare) getDeclareDLX() *Declare {
+	if !d.wait {
 		return nil
 	}
 
-	return &Message{
-		Exchange: m.Exchange,
+	dDLX := &Declare{
+		Exchange: d.Exchange,
 		Type:     "",
 	}
+	dDLX.prepare()
+
+	return dDLX
 }
 
-func (m *Message) getDeadLetterExchange() string {
-	mDLX := m.getMessageDLX()
+func (d *Declare) getDLXExchangeName() string {
+	mDLX := d.getDeclareDLX()
 	if mDLX == nil {
 		return ""
 	}
 
-	return mDLX.getExchangeFullName()
+	return mDLX.exchangeFullName
+}
+
+// GetExchangeFullName TODO
+func (d *Declare) GetExchangeFullName() string {
+	return d.exchangeFullName
+}
+
+// GetQueueFullName TODO
+func (d *Declare) GetQueueFullName() string {
+	return d.queueFullName
+}
+
+// GetQueueArgs TODO
+func (d *Declare) GetQueueArgs() amqp.Table {
+	return d.queueArgs
+}
+
+// GetMaxRetries TODO
+func (d *Declare) GetMaxRetries() int {
+	if d.MaxRetries <= 0 {
+		d.MaxRetries = 3
+	}
+	return d.MaxRetries
 }

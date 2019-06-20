@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -21,32 +23,48 @@ type config struct {
 // Config contains configs infos
 var Config *config
 
+type queuesLoaded struct {
+	sync.Mutex
+	m map[string]bool
+}
+
 // Base TODO
 type Base struct {
 	Conn         *amqp.Connection
 	Channel      *amqp.Channel
-	QueuesLoaded map[string]bool
+	Closed       bool
+	ErrorConn    chan *amqp.Error
+	ErrorChannel chan *amqp.Error
+	isPublisher  bool
+	Confirms     chan amqp.Confirmation
+	queuesLoaded queuesLoaded
+	reconnecting bool
+
+	FnReconnected func() error
+	PrefetchCount int
 }
 
 // Config TODO
-func (b *Base) Config() (err error) {
+func (b *Base) Config(isPublisher bool) (err error) {
 	load()
 
-	b.QueuesLoaded = make(map[string]bool)
+	b.isPublisher = isPublisher
+	b.queuesLoaded = queuesLoaded{
+		m: make(map[string]bool),
+	}
 
 	err = b.Connect()
 	if err != nil {
 		return
 	}
+	go b.reconnector(b.ErrorConn)
+	go b.reconnector(b.ErrorChannel)
 
-	return b.createChannel()
+	return
 }
 
 // Connect TODO
 func (b *Base) Connect() (err error) {
-	if b.Conn != nil {
-		return
-	}
 
 	log.Debugln("connecting ", Config.URL)
 	b.Conn, err = amqp.Dial(Config.URL)
@@ -56,7 +74,117 @@ func (b *Base) Connect() (err error) {
 	}
 	log.Debugln("Got connection")
 
-	go func() { fmt.Printf("Closing connection: %s", <-b.Conn.NotifyClose(make(chan *amqp.Error))) }()
+	err = b.createChannel()
+	if err != nil {
+		return
+	}
+
+	b.ErrorConn = make(chan *amqp.Error)
+	b.Conn.NotifyClose(b.ErrorConn)
+	b.ErrorChannel = make(chan *amqp.Error)
+	b.Channel.NotifyClose(b.ErrorChannel)
+
+	err = b.notifyPublish()
+	if err != nil {
+		return
+	}
+
+	return b.qos()
+}
+
+func (b *Base) notifyPublish() (err error) {
+	if !b.isPublisher {
+		return
+	}
+	go func() {
+		for res := range b.Channel.NotifyReturn(make(chan amqp.Return)) {
+			fmt.Println("Notify Return ", res)
+		}
+	}()
+
+	b.Confirms = b.Channel.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+	log.Debugln("Enabling publishing confirms")
+	err = b.Channel.Confirm(false)
+	if err != nil {
+		log.Errorln("Channel could not be put into confirm mode ", err)
+		return
+	}
+	return
+}
+
+//WaitIfReconnecting TODO
+func (b *Base) WaitIfReconnecting() {
+	for {
+		if b.reconnecting {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		return
+	}
+}
+
+func (b *Base) qos() (err error) {
+	if b.isPublisher {
+		return
+	}
+
+	err = b.Channel.Qos(b.PrefetchCount, 0, false)
+	if err != nil {
+		log.Errorln("Error setting qos: ", err)
+		return
+	}
+	return
+}
+
+func (b *Base) reconnector(errConnChan chan *amqp.Error) {
+	for {
+		errConn := <-errConnChan
+		if b.Closed {
+			return
+		}
+		if errConn != nil {
+			log.Errorln("Reconnecting after of the error: ", errConn)
+			b.TryReconnect()
+		}
+	}
+}
+
+// TryReconnect TODO
+func (b *Base) TryReconnect() (err error) {
+	if b.reconnecting {
+		return
+	}
+
+	b.reconnecting = true
+	defer func() {
+		b.reconnecting = false
+	}()
+
+	log.Debugln("Waiting a few seconds to reconnecting...")
+	time.Sleep(500 * time.Millisecond)
+
+	err = b.Connect()
+	if err != nil {
+		log.Errorln("Could not connect in reconnect call: ", err)
+		return
+	}
+	log.Println("Reconnected: ", b.Conn.IsClosed())
+
+	return b.callFnReconnected()
+}
+
+func (b *Base) callFnReconnected() (err error) {
+
+	if b.FnReconnected == nil {
+		return
+	}
+
+	err = b.FnReconnected()
+	if err != nil {
+		log.Errorln("Error calling func of reconnected", err)
+		return
+	}
 
 	return
 }
@@ -64,20 +192,87 @@ func (b *Base) Connect() (err error) {
 // createChannel TODO
 func (b *Base) createChannel() (err error) {
 
-	if b.Channel != nil {
-		return
-	}
 	log.Debugln("Getting channel")
 
 	b.Channel, err = b.Conn.Channel()
 	if err != nil {
-		log.Errorln(" Failed to open a channel ", err)
+		log.Errorln("Failed to open a channel ", err)
 		return
 	}
 	log.Debugln("Got Channel")
-
-	go func() { fmt.Printf(" Closing channel: %s", <-b.Channel.NotifyClose(make(chan *amqp.Error))) }()
 	return
+}
+
+type ideclare interface {
+	GetExchangeFullName() string
+	GetQueueFullName() string
+	GetQueueArgs() amqp.Table
+}
+
+// CreateExchangeAndQueue TODO
+func (b *Base) CreateExchangeAndQueue(d ideclare) (err error) {
+
+	if b.exchangeAlreadyCreated(d) {
+		return
+	}
+
+	b.queuesLoaded.Lock()
+	defer b.queuesLoaded.Unlock()
+
+	if b.exchangeAlreadyCreated(d) {
+		return
+	}
+
+	log.Debugln("createExchangeAndQueue: ", d.GetExchangeFullName())
+
+	err = b.Channel.ExchangeDeclare(d.GetExchangeFullName(), "fanout", true, false, false, false, nil)
+	if err != nil {
+		log.Errorln("Failed to declare exchange ", err)
+		return
+	}
+
+	err = b.createQueueAndBinding(d)
+	if err != nil {
+		return
+	}
+	log.Debugln("Declared exchange: ", d.GetExchangeFullName())
+
+	b.queuesLoaded.m[d.GetExchangeFullName()] = true
+
+	return
+}
+
+func (b *Base) createQueueAndBinding(d ideclare) (err error) {
+	queue, err := b.Channel.QueueDeclare(d.GetQueueFullName(), true, false, false, false, d.GetQueueArgs())
+	if err != nil {
+		log.Errorln("Failed to declare a queue: ", err)
+		return
+	}
+
+	bindingKey := fmt.Sprintf("%s-key", d.GetQueueFullName())
+	log.Debugln("Declared Queue (", d.GetQueueFullName(), " ", queue.Messages,
+		" messages, ", queue.Consumers, " consumers), binding to Exchange (key ", bindingKey, ")")
+	err = b.Channel.QueueBind(d.GetQueueFullName(), bindingKey, d.GetExchangeFullName(), false, nil)
+	if err != nil {
+		log.Errorln("Failed to bind the queue ", err)
+		return
+	}
+	return
+}
+
+func (b *Base) exchangeAlreadyCreated(d ideclare) bool {
+	return b.queuesLoaded.m[d.GetExchangeFullName()]
+}
+
+// Close TODO
+func (b *Base) Close() (err error) {
+	log.Println("Closing connection")
+	b.Closed = true
+	err = b.Channel.Close()
+	if err != nil {
+		return
+	}
+	return b.Conn.Close()
 }
 
 // load sets the initial settings

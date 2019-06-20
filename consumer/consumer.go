@@ -1,9 +1,7 @@
 package consumer
 
 import (
-	"errors"
 	"fmt"
-	"time"
 
 	"github.com/levpay/rabbitmq"
 	"github.com/nuveo/log"
@@ -13,135 +11,67 @@ import (
 // Consumer TODO
 type Consumer struct {
 	rabbitmq.Base
-
-	done          chan error
-	threads       int
-	prefetchCount int
-
-	// exchangeName      string
-	// queueSuffixName   string
-	// typeName          string
-	// consumerSuffixTag string
-	// actionFunction    function
-
-	// exchangeFullName string
-	// queueFullName    string
-	// consumerTag      string
-	// bindingKey       string
-
-	doneThreads []chan bool
+	threads int
 }
 
 type function func([]byte) error
 
+var errAcknowledgerNil = fmt.Errorf("Acknowledger is nil")
+
 // New TODO
-func New() (c *Consumer, err error) {
+func New(threads, prefetchCount int) (c *Consumer, err error) {
 	log.Println("New Consumer...")
 
 	c = &Consumer{
-		threads:       2,
-		prefetchCount: 2,
-
-		done: make(chan error),
+		threads: threads,
 	}
-	return c, c.prepare()
-}
-
-func (c *Consumer) prepare() (err error) {
-
-	err = c.Config()
-	if err != nil {
-		return
-	}
-
-	err = c.Channel.Qos(c.prefetchCount, 0, false)
-	if err != nil {
-		log.Errorln("Consumer - Error setting qos: ", err)
-		return
-	}
-
-	return
-}
-
-func (c *Consumer) createExchangeAndQueue(exchangeName, typeName, queueSuffixName string) (exchangeFullName string, err error) {
-	exchangeFullName = rabbitmq.GetExchangeFullName(exchangeName, typeName)
-	queueFullName := rabbitmq.GetQueueFullName(exchangeName, queueSuffixName, typeName)
-
-	log.Debugln("Consumer - createExchangeAndQueue: ", exchangeFullName)
-
-	if c.QueuesLoaded[exchangeFullName] {
-		return
-	}
-
-	log.Debugln("Consumer - Declaring Exchange: ", exchangeFullName)
-	err = c.Channel.ExchangeDeclare(exchangeFullName, "fanout", true, false, false, false, nil)
-	if err != nil {
-		log.Errorln("Consumer - Failed to declare exchange ", err)
-		return
-	}
-
-	queue, err := c.Channel.QueueDeclare(queueFullName, true, false, false, false, nil)
-	if err != nil {
-		log.Errorln("Consumer - Failed to declare a queue: ", err)
-		return
-	}
-
-	bindingKey := fmt.Sprintf("%s-key", queueFullName)
-	log.Debugln("Consumer - Declared Queue (", queueFullName, " ", queue.Messages,
-		" messages, ", queue.Consumers, " consumers), binding to Exchange (key ", bindingKey, ")")
-	err = c.Channel.QueueBind(queueFullName, bindingKey, exchangeFullName, false, nil)
-	if err != nil {
-		log.Errorln("Consumer - Failed to bind a queue ", err)
-		return
-	}
-
-	c.QueuesLoaded[exchangeFullName] = true
-
-	return
+	c.PrefetchCount = prefetchCount
+	return c, c.Config(false)
 }
 
 // Consume associates a function to receive messages from the queue.
-func (c *Consumer) Consume(exchangeName, queueSuffixName, typeName, consumerSuffixTag string, actionFunction function) (err error) {
-	log.Println("Consumer - Creating a new consumer")
+func (c *Consumer) Consume(d *Declare) (err error) {
+	d.prepare()
 
-	_, err = c.createExchangeAndQueue(exchangeName, typeName, queueSuffixName)
+	err = c.CreateExchangeAndQueue(d)
 	if err != nil {
 		return
 	}
 
-	deliveries, err := c.announceQueue(exchangeName, queueSuffixName, typeName)
+	c.FnReconnected = func() (err error) {
+		err = c.announceQueue(d)
+		if err != nil {
+			return
+		}
+		return
+	}
+	err = c.FnReconnected()
 	if err != nil {
 		return
 	}
 
-	return c.handle(deliveries, exchangeName, queueSuffixName, typeName, actionFunction)
+	return c.handle(d)
 }
 
-func (c *Consumer) reConnect(exchangeName, queueSuffixName, typeName string) (deliveries <-chan amqp.Delivery, err error) {
-	log.Printf("Consumer - Reconnecting, waiting a few seconds.")
-	time.Sleep(30 * time.Second)
+func (c *Consumer) treatErrorToReconnect(err error) {
 
-	if err = c.Connect(); err != nil {
-		log.Printf("Consumer - Could not connect in reconnect call: %v", err.Error())
-		return nil, err
+	if err == nil {
+		return
 	}
 
-	deliveries, err = c.announceQueue(exchangeName, queueSuffixName, typeName)
-	if err != nil {
-		log.Errorln("Consumer - Failed to reconnect: ", err)
-		return nil, errors.New("Couldn't connect")
+	log.Errorln("Consumer - Failed to consume the message ", err)
+	switch err.Error() {
+	case amqp.ErrClosed.Error(), errAcknowledgerNil.Error():
+		c.TryReconnect()
+		c.WaitIfReconnecting()
 	}
+
 	return
 }
 
-func (c *Consumer) announceQueue(exchangeName, queueSuffixName, typeName string) (deliveries <-chan amqp.Delivery, err error) {
-	log.Debugln("Consumer - Announcing the queue of the consumer")
-
-	consumerTag := rabbitmq.GetConsumerTag(exchangeName, queueSuffixName, "")
-	queueFullName := rabbitmq.GetQueueFullName(exchangeName, queueSuffixName, typeName)
-
-	log.Debugln("Consumer - Starting Consume  tag: ", consumerTag)
-	deliveries, err = c.Channel.Consume(queueFullName, consumerTag, false, false, false, false, nil)
+func (c *Consumer) announceQueue(d *Declare) (err error) {
+	log.Debugln("Consumer - Starting Consume  tag: ", d.consumerTag)
+	d.deliveries, err = c.Channel.Consume(d.queueFullName, d.consumerTag, false, false, false, false, nil)
 	if err != nil {
 		log.Errorln("Consumer - Failed to register a consumer ", err)
 		return
@@ -149,57 +79,79 @@ func (c *Consumer) announceQueue(exchangeName, queueSuffixName, typeName string)
 	return
 }
 
-func (c *Consumer) handle(deliveries <-chan amqp.Delivery, exchangeName, queueSuffixName, typeName string, actionFunction function) (err error) {
+func (c *Consumer) handle(d *Declare) (err error) {
 	log.Debugln("Consumer - Handling the messages")
 
-	for {
-		c.doneThreads = make([]chan bool, c.threads)
-		for i := 0; i < c.threads; i++ {
-			go c.callingExternalFunc(deliveries, i, actionFunction)
-		}
-
-		if <-c.done != nil {
-			c.terminateOldWorkers()
-			deliveries, err = c.reConnect(exchangeName, queueSuffixName, typeName)
-			if err != nil {
-				log.Errorln("Consumer - Reconnecting Error: ", err)
-				return err
-			}
-		}
-		log.Println("Consumer - Reconnected... possibly")
-	}
-}
-
-func (c *Consumer) terminateOldWorkers() {
 	for i := 0; i < c.threads; i++ {
-		log.Println("Consumer - ===============================================", i)
-		log.Println("Consumer - ===============================================", i)
-		log.Println("Consumer - ===============================================", i)
-		c.doneThreads[i] <- true
+		go c.callingExternalFunc(d, i)
+	}
+
+	return
+}
+
+func (c *Consumer) callingExternalFunc(d *Declare, i int) {
+	log.Debugln("Consumer - Calling the external func, thread: ", i)
+	for {
+		m := <-d.deliveries
+		err := d.sendDelivery(m)
+		if err != nil {
+			log.Errorln("Consumer - Failed to consume the msg ", err)
+			c.treatErrorToReconnect(err)
+			continue
+		}
+		log.Println("Consumer - Committed")
 	}
 }
 
-func (c *Consumer) callingExternalFunc(delivery <-chan amqp.Delivery, i int, actionFunction function) {
-	log.Debugln("Consumer - Calling the external func, thread: ", i)
-	c.doneThreads[i] = make(chan bool)
-	for {
-		select {
-		case <-c.doneThreads[i]:
-			return
-		case d := <-delivery:
-			err := actionFunction(d.Body)
-			if err != nil {
-				log.Println("Consumer - Failed to deliver the body ", err)
-			}
+// Declare TODO
+type Declare struct {
+	Exchange       string
+	QueueSuffix    string
+	Type           string
+	ActionFunction function
 
-			err = d.Ack(false)
-			if err != nil {
-				log.Errorln("Consumer - Failed to ack the msg ", err)
-				// c.doneThreads[i] <- true
-				c.done <- err
-				return
-			}
-			log.Println("Consumer - Committed")
-		}
+	exchangeFullName string
+	queueFullName    string
+
+	consumerTag string
+	deliveries  <-chan amqp.Delivery
+}
+
+func (d *Declare) prepare() {
+	d.exchangeFullName = rabbitmq.GetExchangeFullName(d.Exchange, d.Type)
+	d.queueFullName = rabbitmq.GetQueueFullName(d.Exchange, d.QueueSuffix, d.Type)
+	d.consumerTag = rabbitmq.GetConsumerTag(d.Exchange, d.QueueSuffix, "")
+}
+
+func (d *Declare) sendDelivery(m amqp.Delivery) (err error) {
+	if m.Acknowledger == nil {
+		log.Errorln("Consumer - Failed to receive delivery ", errAcknowledgerNil)
+		return errAcknowledgerNil
 	}
+
+	log.Debugln("Consumer - delivery intern", m)
+	errActFunc := d.ActionFunction(m.Body)
+
+	if errActFunc != nil {
+		log.Errorln("Consumer - Failed to deliver the body ", errActFunc)
+		err = m.Nack(false, true)
+	} else {
+		err = m.Ack(false)
+	}
+	return err
+}
+
+// GetExchangeFullName TODO
+func (d *Declare) GetExchangeFullName() string {
+	return d.exchangeFullName
+}
+
+// GetQueueFullName TODO
+func (d *Declare) GetQueueFullName() string {
+	return d.queueFullName
+}
+
+// GetQueueArgs TODO
+func (d *Declare) GetQueueArgs() amqp.Table {
+	return nil
 }

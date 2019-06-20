@@ -12,20 +12,22 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestMessageWait(t *testing.T) {
-	t.Run("Test Message.wait with result true", func(t *testing.T) {
-		m := &Message{
+func TestDeclareWait(t *testing.T) {
+	t.Run("Test Declare.wait with result true", func(t *testing.T) {
+		m := &Declare{
 			Delay: 1000,
 		}
-		result := m.wait()
+		m.prepare()
+
+		result := m.wait
 		expected := true
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
 		}
 	})
-	t.Run("Test Message.wait with result false", func(t *testing.T) {
-		m := &Message{}
-		result := m.wait()
+	t.Run("Test Declare.wait with result false", func(t *testing.T) {
+		m := &Declare{}
+		result := m.wait
 		expected := false
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
@@ -33,22 +35,26 @@ func TestMessageWait(t *testing.T) {
 	})
 }
 
-func TestMessageGetExpiration(t *testing.T) {
-	t.Run("Test Message.getExpiration with result 1000", func(t *testing.T) {
-		m := &Message{
+func TestDeclareGetExpiration(t *testing.T) {
+	t.Run("Test Declare.getExpiration with result 1000", func(t *testing.T) {
+		m := &Declare{
 			Delay: 1000,
 		}
-		result := m.getExpiration()
+		m.prepare()
+
+		result := m.expiration
 		expected := "1000"
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
 		}
 	})
-	t.Run("Test Message.getExpiration with result empty", func(t *testing.T) {
-		m := &Message{
+	t.Run("Test Declare.getExpiration with result empty", func(t *testing.T) {
+		m := &Declare{
 			Delay: 0,
 		}
-		result := m.getExpiration()
+		m.prepare()
+
+		result := m.expiration
 		expected := ""
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
@@ -56,23 +62,27 @@ func TestMessageGetExpiration(t *testing.T) {
 	})
 }
 
-func TestMessageGetArgs(t *testing.T) {
-	t.Run("Test Message.getArgs with result with dlx", func(t *testing.T) {
-		m := &Message{
+func TestDeclareGetArgs(t *testing.T) {
+	t.Run("Test Declare.getArgs with result with dlx", func(t *testing.T) {
+		m := &Declare{
 			Exchange: "queue-of-destination",
 			Delay:    1000,
 		}
-		result := m.getArgs()["x-dead-letter-exchange"]
+		m.prepare()
+
+		result := m.queueArgs["x-dead-letter-exchange"]
 		expected := "testing.queue-of-destination-exchange"
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
 		}
 	})
-	t.Run("Test Message.getArgs with result without dlx", func(t *testing.T) {
-		m := &Message{
+	t.Run("Test Declare.getArgs with result without dlx", func(t *testing.T) {
+		m := &Declare{
 			Exchange: "queue-of-destination",
 		}
-		result := m.getArgs()["x-dead-letter-exchange"]
+		m.prepare()
+
+		result := m.queueArgs["x-dead-letter-exchange"]
 		var expected interface{}
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
@@ -80,31 +90,37 @@ func TestMessageGetArgs(t *testing.T) {
 	})
 }
 
-func TestMessageGetType(t *testing.T) {
-	t.Run("Test Message.getType = WAIT_1000", func(t *testing.T) {
-		m := &Message{
+func TestDeclareGetType(t *testing.T) {
+	t.Run("Test Declare.getType = WAIT_1000", func(t *testing.T) {
+		m := &Declare{
 			Type:  "SUCCESS",
 			Delay: 1000,
 		}
-		result := m.getType()
+		m.prepare()
+
+		result := m.Type
 		expected := "WAIT_1000"
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
 		}
 	})
-	t.Run("Test Message.getType = SUCCESS", func(t *testing.T) {
-		m := &Message{
+	t.Run("Test Declare.getType = SUCCESS", func(t *testing.T) {
+		m := &Declare{
 			Type: "SUCCESS",
 		}
-		result := m.getType()
+		m.prepare()
+
+		result := m.Type
 		expected := "SUCCESS"
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
 		}
 	})
-	t.Run("Test Message.getType = empty", func(t *testing.T) {
-		m := &Message{}
-		result := m.getType()
+	t.Run("Test Declare.getType = empty", func(t *testing.T) {
+		m := &Declare{}
+		m.prepare()
+
+		result := m.Type
 		expected := ""
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
@@ -112,21 +128,25 @@ func TestMessageGetType(t *testing.T) {
 	})
 }
 
-func TestMessageGetMessageDLX(t *testing.T) {
-	t.Run("Test Message.getMessageDLX = nil", func(t *testing.T) {
-		m := &Message{}
-		result := m.getMessageDLX()
-		var expected *Message
+func TestDeclareGetDeclareDLX(t *testing.T) {
+	t.Run("Test Declare.getDeclareDLX = nil", func(t *testing.T) {
+		m := &Declare{}
+		m.prepare()
+
+		result := m.getDeclareDLX()
+		var expected *Declare
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
 		}
 	})
-	t.Run("Test Message.getMessageDLX != nil", func(t *testing.T) {
-		m := &Message{
+	t.Run("Test Declare.getDeclareDLX != nil", func(t *testing.T) {
+		m := &Declare{
 			Exchange: "test",
 			Delay:    100,
 		}
-		result := m.getMessageDLX().getExchangeFullName()
+		m.prepare()
+
+		result := m.getDeclareDLX().exchangeFullName
 		expected := "testing.test-exchange"
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
@@ -134,23 +154,27 @@ func TestMessageGetMessageDLX(t *testing.T) {
 	})
 }
 
-func TestMessageGetDeadLetterExchange(t *testing.T) {
-	t.Run("Test Message.getDeadLetterExchange = empty", func(t *testing.T) {
-		m := &Message{
+func TestDeclareGetDeadLetterExchange(t *testing.T) {
+	t.Run("Test Declare.getDLXExchangeName = empty", func(t *testing.T) {
+		m := &Declare{
 			Exchange: "test",
 		}
-		result := m.getDeadLetterExchange()
+		m.prepare()
+
+		result := m.getDLXExchangeName()
 		expected := ""
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
 		}
 	})
-	t.Run("Test Message.getDeadLetterExchange != empty", func(t *testing.T) {
-		m := &Message{
+	t.Run("Test Declare.getDLXExchangeName != empty", func(t *testing.T) {
+		m := &Declare{
 			Exchange: "test",
 			Delay:    1000,
 		}
-		result := m.getDeadLetterExchange()
+		m.prepare()
+
+		result := m.getDLXExchangeName()
 		expected := "testing.test-exchange"
 		if expected != result {
 			t.Fatalf("Expect %v, got: %v", expected, result)
