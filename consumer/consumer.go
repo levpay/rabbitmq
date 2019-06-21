@@ -15,8 +15,6 @@ type Consumer struct {
 	declares []*Declare
 }
 
-type function func([]byte) error
-
 var errAcknowledgerNil = fmt.Errorf("Acknowledger is nil")
 
 // New TODO
@@ -95,7 +93,7 @@ func (c *Consumer) callingExternalFunc(d *Declare, i int) {
 			c.treatErrorToReconnect(err)
 			continue
 		}
-		log.Println("Consumer - Committed")
+		log.Println("Consumer - Consumed")
 	}
 }
 
@@ -126,16 +124,14 @@ func (a *adapter) PosReconnect() (err error) {
 
 // Declare TODO
 type Declare struct {
-	Exchange       string
-	QueueSuffix    string
-	Type           string
-	ActionFunction function
-
+	Exchange         string
+	QueueSuffix      string
+	Type             string
+	ActionFunction   func([]byte) error
 	exchangeFullName string
 	queueFullName    string
-
-	consumerTag string
-	deliveries  <-chan amqp.Delivery
+	consumerTag      string
+	deliveries       <-chan amqp.Delivery
 }
 
 // Prepare TODO
