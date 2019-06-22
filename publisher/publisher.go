@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/levpay/rabbitmq"
+	"github.com/levpay/rabbitmq/base"
 	"github.com/nuveo/log"
 	"github.com/streadway/amqp"
 )
 
 //Publisher TODO
 type Publisher struct {
-	rabbitmq.Base
+	base.Base
 	confirms chan amqp.Confirmation
 }
 
@@ -91,8 +91,10 @@ func (p *Publisher) handle(d *Declare) (err error) {
 	err = p.Channel.Publish(d.exchangeFullName, "", true, false, msg)
 	if err != nil {
 		log.Errorln("Publisher - Failed to publish the message ", err)
-		if err.Error() == amqp.ErrClosed.Error() {
+		switch err.Error() {
+		case amqp.ErrClosed.Error(), amqp.ErrCommandInvalid.Error():
 			p.TryReconnect()
+			p.WaitIfReconnecting()
 		}
 		return
 	}
@@ -165,8 +167,8 @@ func (d *Declare) Prepare() {
 		d.expiration = ""
 	}
 
-	d.exchangeFullName = rabbitmq.GetExchangeFullName(d.Exchange, d.Type)
-	d.queueFullName = rabbitmq.GetQueueFullName(d.Exchange, "", d.Type)
+	d.exchangeFullName = base.GetExchangeFullName(d.Exchange, d.Type)
+	d.queueFullName = base.GetQueueFullName(d.Exchange, "", d.Type)
 	d.setQueueArgs()
 }
 

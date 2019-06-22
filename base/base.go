@@ -1,27 +1,14 @@
-package rabbitmq
+package base
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/joho/godotenv"
 	"github.com/nuveo/log"
 	"github.com/streadway/amqp"
 )
-
-type config struct {
-	URL   string
-	Env   string
-	Debug bool
-}
-
-// Config contains configs infos
-var Config *config
 
 type queuesLoaded struct {
 	sync.Mutex
@@ -54,8 +41,6 @@ type Base struct {
 
 // Config TODO
 func (b *Base) Config() (err error) {
-	load()
-
 	b.queuesLoaded = queuesLoaded{
 		m: make(map[string]bool),
 	}
@@ -233,31 +218,6 @@ func (b *Base) Close() (err error) {
 	return b.Conn.Close()
 }
 
-// load sets the initial settings
-func load() (err error) {
-	if Config != nil {
-		return
-	}
-	Config = &config{
-		URL: os.Getenv("CLOUDAMQP_URL"),
-		Env: os.Getenv("ENV"),
-	}
-	if Config.URL == "" {
-		return errors.New("CLOUDAMQP_URL is missing in the environments variables")
-	}
-	if Config.Env == "" {
-		return errors.New("ENV is missing in the environments variables")
-	}
-
-	Config.Debug, err = strconv.ParseBool(os.Getenv("DEBUG"))
-	if err != nil {
-		return fmt.Errorf("Failed to convert DEBUG value: %s", err)
-	}
-	log.DebugMode = Config.Debug
-
-	return
-}
-
 // GetQueueFullName returns the queue name referencing the exchange and the environment
 func GetQueueFullName(exchangeName string, queueSuffixName string, typeName string) string {
 	if queueSuffixName == "" {
@@ -287,14 +247,4 @@ func GetConsumerTag(exchangeName string, queueSuffixName string, consumerSuffixT
 		consumerSuffixTag = uuid.New().String()
 	}
 	return fmt.Sprintf("%s.%s..%s.%s-consumer", Config.Env, exchangeName, queueSuffixName, consumerSuffixTag)
-}
-
-// LoadEnv loads a file with the environment variables
-func LoadEnv(filename string) {
-	err := godotenv.Load(filename)
-	if err != nil {
-		log.Fatal("Error loading .env.testing file ", err)
-	}
-
-	load()
 }

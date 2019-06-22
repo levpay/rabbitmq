@@ -37,6 +37,13 @@ func main() {
 	}
 	go c.Consume(d)
 
+	success := &consumer.Declare{
+		Exchange:       "example",
+		Type:           "SUCCESS",
+		ActionFunction: processMSGReturnSUCCESS,
+	}
+	go c.Consume(success)
+
 	// go func() {
 	// 	time.Sleep(2000 * time.Millisecond)
 	// 	for i := 0; i < 10; i++ {
@@ -83,13 +90,13 @@ func processMSG(b []byte) (err error) {
 
 	switch test.Attempt {
 	case 1:
-		log.Println("Queuing with a delay of 30 seconds -> ", test.UUID)
+		log.Println("Queuing with a delay of 10 seconds -> ", test.UUID)
 		d.Priority = 1
-		err = p.PublishWithDelay(d, 30000)
+		err = p.PublishWithDelay(d, 10000)
 	case 2:
 		d.Priority = 2
-		log.Println("Queuing with a delay of 60 seconds. -> ", test.UUID)
-		p.PublishWithDelay(d, 60000)
+		log.Println("Queuing with a delay of 30 seconds. -> ", test.UUID)
+		p.PublishWithDelay(d, 30000)
 	default:
 		d.Type = "SUCCESS"
 		p.Publish(d)

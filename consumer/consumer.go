@@ -3,14 +3,14 @@ package consumer
 import (
 	"fmt"
 
-	"github.com/levpay/rabbitmq"
+	"github.com/levpay/rabbitmq/base"
 	"github.com/nuveo/log"
 	"github.com/streadway/amqp"
 )
 
 // Consumer TODO
 type Consumer struct {
-	rabbitmq.Base
+	base.Base
 	threads  int
 	declares []*Declare
 }
@@ -48,14 +48,13 @@ func (c *Consumer) Consume(d *Declare) (err error) {
 }
 
 func (c *Consumer) treatErrorToReconnect(err error) {
-
 	if err == nil {
 		return
 	}
 
 	log.Errorln("Consumer - Failed to consume the message ", err)
 	switch err.Error() {
-	case amqp.ErrClosed.Error(), errAcknowledgerNil.Error():
+	case amqp.ErrClosed.Error(), amqp.ErrCommandInvalid.Error(), errAcknowledgerNil.Error():
 		c.TryReconnect()
 		c.WaitIfReconnecting()
 	}
@@ -136,9 +135,9 @@ type Declare struct {
 
 // Prepare TODO
 func (d *Declare) Prepare() {
-	d.exchangeFullName = rabbitmq.GetExchangeFullName(d.Exchange, d.Type)
-	d.queueFullName = rabbitmq.GetQueueFullName(d.Exchange, d.QueueSuffix, d.Type)
-	d.consumerTag = rabbitmq.GetConsumerTag(d.Exchange, d.QueueSuffix, "")
+	d.exchangeFullName = base.GetExchangeFullName(d.Exchange, d.Type)
+	d.queueFullName = base.GetQueueFullName(d.Exchange, d.QueueSuffix, d.Type)
+	d.consumerTag = base.GetConsumerTag(d.Exchange, d.QueueSuffix, "")
 }
 
 func (d *Declare) sendDelivery(m amqp.Delivery) (err error) {

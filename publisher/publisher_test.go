@@ -4,11 +4,15 @@ import (
 	"os"
 	"testing"
 
-	"github.com/levpay/rabbitmq"
+	"github.com/levpay/rabbitmq/base"
+	"github.com/nuveo/log"
 )
 
 func TestMain(m *testing.M) {
-	rabbitmq.LoadEnv("../.env.testing")
+	err := base.LoadEnv("../.env.testing")
+	if err != nil {
+		log.Fatal("Erro to load ", err)
+	}
 	os.Exit(m.Run())
 }
 
