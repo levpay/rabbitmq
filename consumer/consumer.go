@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/levpay/rabbitmq/base"
 	"github.com/nuveo/log"
@@ -15,7 +16,10 @@ type Consumer struct {
 	declares []*Declare
 }
 
-var errAcknowledgerNil = fmt.Errorf("Acknowledger is nil")
+var (
+	errAcknowledgerNil = fmt.Errorf("Acknowledger is nil")
+	consumeM           sync.Mutex
+)
 
 // New TODO
 func New(threads, preFetchCount int) (c *Consumer, err error) {
@@ -33,6 +37,9 @@ func New(threads, preFetchCount int) (c *Consumer, err error) {
 
 // Consume associates a function to receive messages from the queue.
 func (c *Consumer) Consume(d *Declare) (err error) {
+	consumeM.Lock()
+	defer consumeM.Unlock()
+
 	c.declares = append(c.declares, d)
 	err = c.Prepare(d)
 	if err != nil {

@@ -76,9 +76,6 @@ func (b *Base) Connect() (err error) {
 	b.ErrorChannel = make(chan *amqp.Error)
 	b.Channel.NotifyClose(b.ErrorChannel)
 
-	log.Debugln("Wait to the full loading...")
-	time.Sleep(time.Microsecond)
-
 	return b.Adapter.PosCreateChannel(b.Channel)
 }
 
@@ -167,7 +164,6 @@ func (b *Base) CreateExchangeAndQueue(d ideclare) (err error) {
 	}
 
 	log.Debugln("createExchangeAndQueue: ", d.GetExchangeFullName())
-
 	err = b.Channel.ExchangeDeclare(d.GetExchangeFullName(), "fanout", true, false, false, false, nil)
 	if err != nil {
 		log.Errorln("Failed to declare exchange ", err)
