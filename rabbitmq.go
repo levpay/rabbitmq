@@ -1,17 +1,26 @@
 package rabbitmq
 
 import (
+	"sync"
+
 	"github.com/levpay/rabbitmq/base"
 	"github.com/levpay/rabbitmq/consumer"
 	"github.com/levpay/rabbitmq/publisher"
 )
 
 var (
-	p *publisher.Publisher
-	c *consumer.Consumer
+	pM sync.Mutex
+	p  *publisher.Publisher
+	cM sync.Mutex
+	c  *consumer.Consumer
 )
 
 func loadPublisher() (err error) {
+	if p != nil {
+		return
+	}
+	pM.Lock()
+	defer pM.Unlock()
 	if p != nil {
 		return
 	}
@@ -29,12 +38,17 @@ func loadConsumer() (err error) {
 	if c != nil {
 		return
 	}
+	cM.Lock()
+	defer cM.Unlock()
+	if c != nil {
+		return
+	}
 	err = base.Load()
 	if err != nil {
 		return
 	}
 
-	c, err = consumer.New(2, 2)
+	c, err = consumer.New(40, 200)
 
 	return
 }

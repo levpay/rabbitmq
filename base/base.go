@@ -76,6 +76,9 @@ func (b *Base) Connect() (err error) {
 	b.ErrorChannel = make(chan *amqp.Error)
 	b.Channel.NotifyClose(b.ErrorChannel)
 
+	log.Debugln("Wait to the full loading...")
+	time.Sleep(time.Microsecond)
+
 	return b.Adapter.PosCreateChannel(b.Channel)
 }
 
