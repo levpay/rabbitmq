@@ -151,7 +151,6 @@ func (d *Declare) sendDelivery(m amqp.Delivery) (err error) {
 
 	if errActFunc != nil {
 		log.Errorln("Consumer - Failed to deliver the body ", errActFunc)
-		err = m.Nack(false, true)
 	} else {
 		err = m.Ack(false)
 	}
