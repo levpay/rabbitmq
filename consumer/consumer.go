@@ -22,15 +22,15 @@ var (
 )
 
 // New TODO
-func New(threads, preFetchCount int) (c *Consumer, err error) {
+func New(threads, preFetchCountByThread int) (c *Consumer, err error) {
 	log.Println("New Consumer...")
 
 	c = &Consumer{
 		threads: threads,
 	}
 	c.Adapter = &adapter{
-		preFetchCount: preFetchCount,
-		consumer:      c,
+		preFetchCountTotal: preFetchCountByThread * threads,
+		consumer:           c,
 	}
 	return c, c.Config()
 }
@@ -104,12 +104,12 @@ func (c *Consumer) callingExternalFunc(d *Declare, i int) {
 }
 
 type adapter struct {
-	preFetchCount int
-	consumer      *Consumer
+	preFetchCountTotal int
+	consumer           *Consumer
 }
 
 func (a *adapter) PosCreateChannel(c *amqp.Channel) (err error) {
-	err = c.Qos(a.preFetchCount, 0, false)
+	err = c.Qos(a.preFetchCountTotal, 0, false)
 	if err != nil {
 		log.Errorln("Error setting qos: ", err)
 		return

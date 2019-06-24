@@ -48,7 +48,7 @@ func loadConsumer() (err error) {
 		return
 	}
 
-	c, err = consumer.New(40, 200)
+	c, err = consumer.New(40, 5)
 
 	return
 }
@@ -84,6 +84,22 @@ func PublisherWithDelay(exchangeName string, delay int64, body []byte) (err erro
 		Exchange: exchangeName,
 		Delay:    delay,
 		Body:     body,
+	}
+	return p.Publish(d)
+}
+
+// PublisherWithPriority TODO
+func PublisherWithPriority(exchangeName string, delay int64, priority uint8, body []byte) (err error) {
+	err = loadPublisher()
+	if err != nil {
+		return
+	}
+
+	d := &publisher.Declare{
+		Exchange: exchangeName,
+		Delay:    delay,
+		Body:     body,
+		Priority: priority,
 	}
 	return p.Publish(d)
 }
