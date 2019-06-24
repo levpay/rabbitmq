@@ -147,6 +147,7 @@ type Declare struct {
 	Delay            int64
 	MaxRetries       int
 	Priority         uint8
+	typeFullName     string
 	exchangeFullName string
 	queueFullName    string
 	wait             bool
@@ -158,8 +159,9 @@ type Declare struct {
 func (d *Declare) Prepare() {
 	d.wait = d.Delay != 0
 
+	d.typeFullName = d.Type
 	if d.wait {
-		d.Type = fmt.Sprintf("WAIT_%v", d.Delay)
+		d.typeFullName = fmt.Sprintf("%v:WAIT_%v", d.Type, d.Delay)
 	}
 
 	d.expiration = strconv.FormatInt(d.Delay, 10)
@@ -167,8 +169,8 @@ func (d *Declare) Prepare() {
 		d.expiration = ""
 	}
 
-	d.exchangeFullName = base.GetExchangeFullName(d.Exchange, d.Type)
-	d.queueFullName = base.GetQueueFullName(d.Exchange, "", d.Type)
+	d.exchangeFullName = base.GetExchangeFullName(d.Exchange, d.typeFullName)
+	d.queueFullName = base.GetQueueFullName(d.Exchange, "", d.typeFullName)
 	d.setQueueArgs()
 }
 
@@ -190,7 +192,7 @@ func (d *Declare) getDeclareDLX() *Declare {
 
 	dDLX := &Declare{
 		Exchange: d.Exchange,
-		Type:     "",
+		Type:     d.Type,
 	}
 	dDLX.Prepare()
 
@@ -214,6 +216,11 @@ func (d *Declare) GetExchangeFullName() string {
 // GetQueueFullName returns the queue full name
 func (d *Declare) GetQueueFullName() string {
 	return d.queueFullName
+}
+
+// GetTypeFullName returns the type full name
+func (d *Declare) GetTypeFullName() string {
+	return d.typeFullName
 }
 
 // GetQueueArgs returns the argument table of the queue

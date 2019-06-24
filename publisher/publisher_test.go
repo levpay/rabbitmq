@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/levpay/rabbitmq/base"
 	"github.com/nuveo/log"
 )
@@ -101,12 +103,7 @@ func TestDeclareGetType(t *testing.T) {
 			Delay: 1000,
 		}
 		m.Prepare()
-
-		result := m.Type
-		expected := "WAIT_1000"
-		if expected != result {
-			t.Fatalf("Expect %v, got: %v", expected, result)
-		}
+		assert.Equal(t, m.GetTypeFullName(), "SUCCESS:WAIT_1000")
 	})
 	t.Run("Test Declare.getType = SUCCESS", func(t *testing.T) {
 		m := &Declare{
@@ -149,12 +146,16 @@ func TestDeclareGetDeclareDLX(t *testing.T) {
 			Delay:    100,
 		}
 		m.Prepare()
-
-		result := m.getDeclareDLX().exchangeFullName
-		expected := "testing.test-exchange"
-		if expected != result {
-			t.Fatalf("Expect %v, got: %v", expected, result)
+		assert.Equal(t, m.getDeclareDLX().exchangeFullName, "testing.test-exchange")
+	})
+	t.Run("Test Declare.getDeclareDLX != nil", func(t *testing.T) {
+		m := &Declare{
+			Exchange: "test",
+			Type:     "SUCCESS",
+			Delay:    100,
 		}
+		m.Prepare()
+		assert.Equal(t, m.getDeclareDLX().exchangeFullName, "testing.test-exchange:SUCCESS")
 	})
 }
 
