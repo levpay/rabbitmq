@@ -48,7 +48,7 @@ func loadConsumer() (err error) {
 		return
 	}
 
-	c, err = consumer.New(40, 5)
+	c, err = consumer.New(50, 2)
 
 	return
 }
