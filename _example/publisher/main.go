@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/levpay/rabbitmq/base"
 	"github.com/levpay/rabbitmq/publisher"
 	"github.com/nuveo/log"
 )
@@ -17,6 +19,13 @@ type test struct {
 
 var p *publisher.Publisher
 
+func init() {
+	err := base.Load()
+	if err != nil {
+		return
+	}
+}
+
 func main() {
 	log.DebugMode = true
 
@@ -26,30 +35,24 @@ func main() {
 		log.Fatal("Failed to create publisher")
 	}
 
-	for i := 0; i < 1; i++ {
-		go generation(i)
-	}
+	go generation()
 
-	// go func() {
-	// 	time.Sleep(1657 * time.Millisecond)
-	// 	for i := 0; i < 10; i++ {
-	// 		time.Sleep(1252 * time.Millisecond)
-	// 		p.Conn.Close()
-	// 		time.Sleep(2245 * time.Millisecond)
-	// 		// }
-	// 	}
-	// }()
+	// go testReconnect()
 
 	log.Println(" [*] Waiting for messages. To exit press CTRL+C")
 
 	<-make(chan bool)
 }
 
-func generation(e int) {
-	log.Println("generation: ", e)
-	for i := 0; i < 1; i++ {
-		publish(i)
-		log.Println("publish at thread: ", e, i)
+func generation() {
+	for e := 0; e < 30; e++ {
+		go func(e int) {
+			log.Println("generation: ", e)
+			for i := 0; i < 100; i++ {
+				publish(i)
+				log.Println("publish at thread: ", e, i)
+			}
+		}(e)
 	}
 }
 
@@ -59,10 +62,7 @@ func publish(i int) {
 		Item: i,
 	}
 
-	log.Println(fmt.Sprintf("\n\nPublishing a msg %s.\n", t.UUID))
-
 	body, _ := json.Marshal(t)
-
 	msg := &publisher.Declare{
 		Exchange: "example",
 		Body:     body,
@@ -71,5 +71,15 @@ func publish(i int) {
 	err := p.Publish(msg)
 	if err != nil {
 		log.Errorln("Message not sent: ", err)
+	}
+	log.Println(fmt.Sprintf("\n\nPublishing a msg %s.\n", t.UUID))
+}
+
+func testReconnect() {
+	time.Sleep(1657 * time.Millisecond)
+	for i := 0; i < 10; i++ {
+		time.Sleep(1000 * time.Millisecond)
+		p.Conn.Close()
+		time.Sleep(2000 * time.Millisecond)
 	}
 }

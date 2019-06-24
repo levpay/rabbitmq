@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/levpay/rabbitmq/base"
 	"github.com/levpay/rabbitmq/consumer"
 	"github.com/levpay/rabbitmq/publisher"
 	"github.com/nuveo/log"
@@ -17,11 +19,18 @@ type testStruct struct {
 var p *publisher.Publisher
 var c *consumer.Consumer
 
+func init() {
+	err := base.Load()
+	if err != nil {
+		return
+	}
+}
+
 func main() {
 	log.DebugMode = true
 
 	var err error
-	c, err = consumer.New(2, 2)
+	c, err = consumer.New(50, 3)
 	if err != nil {
 		log.Fatal("Failed to create consumer")
 	}
@@ -44,25 +53,9 @@ func main() {
 	}
 	go c.Consume(success)
 
-	// go func() {
-	// 	time.Sleep(2000 * time.Millisecond)
-	// 	for i := 0; i < 10; i++ {
-	// 		time.Sleep(2000 * time.Millisecond)
-	// 		c.Conn.Close()
-	// 		time.Sleep(2000 * time.Millisecond)
-	// 	}
-	// }()
+	// go testConsumerReconnect()
 
-	// go func() {
-	// 	time.Sleep(7657 * time.Millisecond)
-	// 	for i := 0; i < 10; i++ {
-	// 		time.Sleep(1252 * time.Millisecond)
-	// 		log.Errorln("Test close")
-	// 		p.Conn.Close()
-	// 		time.Sleep(3245 * time.Millisecond)
-	// 		// }
-	// 	}
-	// }()
+	// go testPublisherReconnect()
 
 	log.Println(" [*] Waiting for messages. To exit press CTRL+C")
 
@@ -109,4 +102,22 @@ func processMSG(b []byte) (err error) {
 func processMSGReturnSUCCESS(b []byte) (err error) {
 	log.Println("Received a msg of SUCCESS: ", string(b))
 	return
+}
+
+func testConsumerReconnect() {
+	time.Sleep(1657 * time.Millisecond)
+	for i := 0; i < 10; i++ {
+		time.Sleep(2000 * time.Millisecond)
+		c.Conn.Close()
+		time.Sleep(2500 * time.Millisecond)
+	}
+}
+
+func testPublisherReconnect() {
+	time.Sleep(1657 * time.Millisecond)
+	for i := 0; i < 10; i++ {
+		time.Sleep(1250 * time.Millisecond)
+		p.Conn.Close()
+		time.Sleep(3250 * time.Millisecond)
+	}
 }
