@@ -27,7 +27,7 @@ type ideclare interface {
 	Prepare()
 }
 
-// Base TODO
+// Base contains the base struct of publisher/consumer
 type Base struct {
 	Conn         *amqp.Connection
 	Channel      *amqp.Channel
@@ -39,13 +39,13 @@ type Base struct {
 	reconnecting bool
 }
 
-// Config TODO
+// Config is the func that connect and create the channel with the rabbitmq server
 func (b *Base) Config() (err error) {
 	b.queuesLoaded = queuesLoaded{
 		m: make(map[string]bool),
 	}
 
-	err = b.Connect()
+	err = b.connect()
 	if err != nil {
 		return
 	}
@@ -55,9 +55,7 @@ func (b *Base) Config() (err error) {
 	return
 }
 
-// Connect TODO
-func (b *Base) Connect() (err error) {
-
+func (b *Base) connect() (err error) {
 	log.Debugln("connecting ", Config.URL)
 	b.Conn, err = amqp.Dial(Config.URL)
 	if err != nil {
@@ -79,7 +77,7 @@ func (b *Base) Connect() (err error) {
 	return b.Adapter.PosCreateChannel(b.Channel)
 }
 
-//WaitIfReconnecting TODO
+//WaitIfReconnecting waits until reconnected with the server
 func (b *Base) WaitIfReconnecting() {
 	for {
 		if b.reconnecting {
@@ -103,7 +101,7 @@ func (b *Base) reconnector(errConnChan chan *amqp.Error) {
 	}
 }
 
-// TryReconnect TODO
+// TryReconnect attempts to reconnect when the connection drops
 func (b *Base) TryReconnect() (err error) {
 	if b.reconnecting {
 		return
@@ -117,7 +115,7 @@ func (b *Base) TryReconnect() (err error) {
 	log.Debugln("Waiting a few seconds to reconnecting...")
 	time.Sleep(500 * time.Millisecond)
 
-	err = b.Connect()
+	err = b.connect()
 	if err != nil {
 		log.Errorln("Could not connect in reconnect call: ", err)
 		return
@@ -127,7 +125,6 @@ func (b *Base) TryReconnect() (err error) {
 	return b.Adapter.PosReconnect()
 }
 
-// createChannel TODO
 func (b *Base) createChannel() (err error) {
 
 	log.Debugln("Getting channel")
@@ -141,7 +138,7 @@ func (b *Base) createChannel() (err error) {
 	return
 }
 
-// Prepare TODO
+// Prepare the data to connect to the exchange and queue
 func (b *Base) Prepare(d ideclare) (err error) {
 	b.WaitIfReconnecting()
 	d.Prepare()
@@ -149,7 +146,7 @@ func (b *Base) Prepare(d ideclare) (err error) {
 	return b.CreateExchangeAndQueue(d)
 }
 
-// CreateExchangeAndQueue TODO
+// CreateExchangeAndQueue creates the exchange and queue
 func (b *Base) CreateExchangeAndQueue(d ideclare) (err error) {
 
 	if b.exchangeAlreadyCreated(d) {
@@ -206,7 +203,7 @@ func (b *Base) exchangeAlreadyCreated(d ideclare) bool {
 	return b.queuesLoaded.m[d.GetExchangeFullName()]
 }
 
-// Close TODO
+// Close all connections definitely
 func (b *Base) Close() (err error) {
 	log.Println("Closing connection")
 	b.Closed = true

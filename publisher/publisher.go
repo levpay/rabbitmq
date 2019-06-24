@@ -9,13 +9,13 @@ import (
 	"github.com/streadway/amqp"
 )
 
-//Publisher TODO
+// Publisher contains the datas of the publisher as connection and channel
 type Publisher struct {
 	base.Base
 	confirms chan amqp.Confirmation
 }
 
-// New TODO
+// New creates a publisher
 func New() (p *Publisher, err error) {
 	log.Println("New Publisher ...")
 
@@ -40,7 +40,7 @@ func (p *Publisher) publishWithoutRetry(d *Declare) (err error) {
 	return p.handle(d)
 }
 
-// PublishWithDelay TODO
+// PublishWithDelay publish a message in the waiting exchange
 func (p *Publisher) PublishWithDelay(d *Declare, delay int64) (err error) {
 	if delay == 0 {
 		delay = 10000
@@ -49,7 +49,7 @@ func (p *Publisher) PublishWithDelay(d *Declare, delay int64) (err error) {
 	return p.Publish(d)
 }
 
-// Publish TODO
+// Publish adds a message in the exchange
 func (p *Publisher) Publish(d *Declare) (err error) {
 	for i := 0; i < d.GetMaxRetries(); i++ {
 		err = p.publishWithoutRetry(d)
@@ -139,7 +139,7 @@ func (a *adapter) PosReconnect() error {
 	return nil
 }
 
-// Declare TODO
+// Declare contains the exchange and queue data that the publisher should publish
 type Declare struct {
 	Exchange         string
 	Type             string
@@ -154,7 +154,7 @@ type Declare struct {
 	queueArgs        amqp.Table
 }
 
-//Prepare TODO
+// Prepare the metadata of the exchange and queue to be consumed
 func (d *Declare) Prepare() {
 	d.wait = d.Delay != 0
 
@@ -206,22 +206,22 @@ func (d *Declare) getDLXExchangeName() string {
 	return mDLX.exchangeFullName
 }
 
-// GetExchangeFullName TODO
+// GetExchangeFullName returns the exchange full name
 func (d *Declare) GetExchangeFullName() string {
 	return d.exchangeFullName
 }
 
-// GetQueueFullName TODO
+// GetQueueFullName returns the queue full name
 func (d *Declare) GetQueueFullName() string {
 	return d.queueFullName
 }
 
-// GetQueueArgs TODO
+// GetQueueArgs returns the argument table of the queue
 func (d *Declare) GetQueueArgs() amqp.Table {
 	return d.queueArgs
 }
 
-// GetMaxRetries TODO
+// GetMaxRetries returns the max retries to publish
 func (d *Declare) GetMaxRetries() int {
 	if d.MaxRetries <= 0 {
 		d.MaxRetries = 3

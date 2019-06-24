@@ -9,7 +9,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
-// Consumer TODO
+// Consumer contains the datas of the consumers as connection and channel
 type Consumer struct {
 	base.Base
 	threads  int
@@ -21,7 +21,7 @@ var (
 	consumeM           sync.Mutex
 )
 
-// New TODO
+// New creates a consumer with the count of the threads and the count to preFetch by thread
 func New(threads, preFetchCountByThread int) (c *Consumer, err error) {
 	log.Println("New Consumer...")
 
@@ -128,7 +128,7 @@ func (a *adapter) PosReconnect() (err error) {
 	return
 }
 
-// Declare TODO
+// Declare contains the exchange and queue data that the consumer should consume
 type Declare struct {
 	Exchange         string
 	QueueSuffix      string
@@ -140,7 +140,7 @@ type Declare struct {
 	deliveries       <-chan amqp.Delivery
 }
 
-// Prepare TODO
+// Prepare the metadata of the exchange and queue to be consumed
 func (d *Declare) Prepare() {
 	d.exchangeFullName = base.GetExchangeFullName(d.Exchange, d.Type)
 	d.queueFullName = base.GetQueueFullName(d.Exchange, d.QueueSuffix, d.Type)
@@ -164,17 +164,17 @@ func (d *Declare) sendDelivery(m amqp.Delivery) (err error) {
 	return err
 }
 
-// GetExchangeFullName TODO
+// GetExchangeFullName returns the exchange full name
 func (d *Declare) GetExchangeFullName() string {
 	return d.exchangeFullName
 }
 
-// GetQueueFullName TODO
+// GetQueueFullName returns the queue full name
 func (d *Declare) GetQueueFullName() string {
 	return d.queueFullName
 }
 
-// GetQueueArgs TODO
+// GetQueueArgs returns the argument table of the queue
 func (d *Declare) GetQueueArgs() amqp.Table {
 	return make(amqp.Table)
 }

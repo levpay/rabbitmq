@@ -53,12 +53,12 @@ func loadConsumer() (err error) {
 	return
 }
 
-// SimplePublisher TODO
+// SimplePublisher adds a message in the exchange without options
 func SimplePublisher(exchangeName string, body []byte) (err error) {
 	return Publisher(exchangeName, "", body)
 }
 
-// Publisher TODO
+// Publisher adds a message in the exchange
 func Publisher(exchangeName string, typeName string, body []byte) (err error) {
 	err = loadPublisher()
 	if err != nil {
@@ -73,7 +73,7 @@ func Publisher(exchangeName string, typeName string, body []byte) (err error) {
 	return p.Publish(d)
 }
 
-// PublisherWithDelay TODO
+// PublisherWithDelay adds a message in the waiting exchange
 func PublisherWithDelay(exchangeName string, delay int64, body []byte) (err error) {
 	err = loadPublisher()
 	if err != nil {
@@ -88,7 +88,7 @@ func PublisherWithDelay(exchangeName string, delay int64, body []byte) (err erro
 	return p.Publish(d)
 }
 
-// PublisherWithPriority TODO
+// PublisherWithPriority adds a message in the waiting exchange and with priority
 func PublisherWithPriority(exchangeName string, delay int64, priority uint8, body []byte) (err error) {
 	err = loadPublisher()
 	if err != nil {
@@ -104,7 +104,7 @@ func PublisherWithPriority(exchangeName string, delay int64, priority uint8, bod
 	return p.Publish(d)
 }
 
-// SimpleConsumer TODO
+// SimpleConsumer is a simple version of the Consumer that associates a function to receive messages from the queue
 func SimpleConsumer(exchangeName, typeName string, actionFunction func([]byte) error) (err error) {
 	err = loadConsumer()
 	if err != nil {
