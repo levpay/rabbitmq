@@ -1,0 +1,15 @@
+language: go
+os:
+  - linux
+go:
+  - '1.12'
+env:
+  - GO111MODULE=on
+script:
+  - go test ./... -cover -coverprofile=coverage.out
+notifications:
+  slack:
+    rooms:
+      - levpay:zFXMmpOIs9amuhu3olE4mNGt
+    on_success: never
+    on_failure: always

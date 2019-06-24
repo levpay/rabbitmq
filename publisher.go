@@ -2,14 +2,40 @@ package rabbitmq
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/nuveo/log"
 	"github.com/streadway/amqp"
 )
 
-// Publisher adds a message in exchange.
-func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) (err error) {
-	exchangeFullName := GetExchangeFullName(exchangeName)
+// SimplePublisher adds a message in the exchange without options.
+func SimplePublisher(exchangeName string, body []byte) (err error) {
+	return publisherBase(exchangeName, "", 0, body)
+}
+
+// Publisher adds a message in the exchange.
+func Publisher(exchangeName string, typeName string, body []byte) (err error) {
+	return publisherBase(exchangeName, typeName, 0, body)
+}
+
+//PublisherWithDelay adds a message in the waiting exchange.
+func PublisherWithDelay(exchangeName string, delay int64, body []byte) (err error) {
+	if delay == 0 {
+		delay = 10000
+	}
+	return publisherBase(exchangeName, "", delay, body)
+}
+
+func publisherBase(exchangeName string, typeName string, delay int64, body []byte) (err error) {
+
+	wait := false
+	if delay != 0 {
+		wait = true
+		typeName = fmt.Sprintf("WAIT_%v", delay)
+	}
+
+	exchangeFullName := GetExchangeFullName(exchangeName, typeName)
+
 	log.Debugln("Dialing ", Config.URL)
 	connection, err := amqp.Dial(Config.URL)
 	if err != nil {
@@ -24,7 +50,8 @@ func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) 
 		return
 	}
 	defer channel.Close()
-	log.Debugln("Got Channel, declaring Exchange", exchangeFullName)
+
+	log.Debugln("Got Channel, declaring Exchange: ", exchangeFullName)
 	err = channel.ExchangeDeclare(exchangeFullName, "fanout", true, false, false, false, nil)
 	if err != nil {
 		log.Errorln("Failed to declare exchange ", err)
@@ -37,26 +64,40 @@ func Publisher(exchangeName string, defaultQueueSuffixName string, body []byte) 
 	}
 	confirms := channel.NotifyPublish(make(chan amqp.Confirmation, 1))
 	defer confirmOne(confirms)
-	defaultQueueFullName := GetQueueFullName(exchangeName, defaultQueueSuffixName)
-	err = createDefaultQueue(channel, exchangeFullName, defaultQueueFullName)
+	defaultQueueFullName := GetQueueFullName(exchangeName, "", typeName)
+	err = createDefaultQueue(channel, exchangeName, exchangeFullName, defaultQueueFullName, typeName, wait)
 	if err != nil {
 		log.Errorln("Failed to create default queue ", err)
 		return
 	}
-	log.Debugln("Declared exchange, publishing ", len(body), "  body ", string(body))
+	log.Debugln("Declared exchange [", exchangeFullName, "], publishing ", len(body), "  body ", string(body))
 	msg := amqp.Publishing{
 		Headers:         amqp.Table{},
 		ContentType:     "application/json",
 		ContentEncoding: "UTF-8",
 		Body:            body,
-		DeliveryMode:    2,
+		DeliveryMode:    amqp.Persistent,
+		Expiration:      getExpiration(delay),
 		Priority:        0,
 	}
 	return channel.Publish(exchangeFullName, "", false, false, msg)
 }
 
-func createDefaultQueue(channel *amqp.Channel, exchangeFullName string, defaultQueueName string) (err error) {
-	queue, err := channel.QueueDeclare(defaultQueueName, true, false, false, false, nil)
+func getExpiration(delay int64) (expiration string) {
+	expiration = strconv.FormatInt(delay, 10)
+	if expiration == "0" {
+		return ""
+	}
+	return expiration
+}
+
+func createDefaultQueue(channel *amqp.Channel, exchangeName string, exchangeFullName string, defaultQueueName string, typeName string, wait bool) (err error) {
+	args := make(amqp.Table)
+	if wait {
+		args["x-dead-letter-exchange"] = GetExchangeFullName(exchangeName, "")
+	}
+
+	queue, err := channel.QueueDeclare(defaultQueueName, true, false, false, false, args)
 	if err != nil {
 		log.Errorln("Failed to declare a queue ", err)
 		return

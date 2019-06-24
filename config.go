@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/google/uuid"
 )
 
 type config struct {
@@ -33,16 +35,32 @@ func Load() (err error) {
 }
 
 // GetQueueFullName returns the queue name referencing the exchange and the environment
-func GetQueueFullName(exchangeName string, queueSuffixName string) (queueFullName string) {
-	return fmt.Sprintf("ENV_%s-EXCHANGE_%s-QUEUE_%s", Config.Env, exchangeName, queueSuffixName)
+func GetQueueFullName(exchangeName string, queueSuffixName string, typeName string) string {
+	if queueSuffixName == "" {
+		queueSuffixName = "master"
+	}
+
+	if typeName != "" {
+		typeName = fmt.Sprintf(":%s", typeName)
+	}
+	return fmt.Sprintf("%s.%s.%s-queue%s", Config.Env, exchangeName, queueSuffixName, typeName)
 }
 
 // GetExchangeFullName returns the exchange name referencing the environment
-func GetExchangeFullName(exchangeName string) (exchangeFullName string) {
-	return fmt.Sprintf("ENV_%s-EXCHANGE_%s", Config.Env, exchangeName)
+func GetExchangeFullName(exchangeName string, typeName string) string {
+	if typeName != "" {
+		typeName = fmt.Sprintf(":%s", typeName)
+	}
+	return fmt.Sprintf("%s.%s-exchange%s", Config.Env, exchangeName, typeName)
 }
 
 // GetConsumerTag returns the name of the consumer referencing the name of the exchange, queue, and environment
-func GetConsumerTag(exchangeName string, queueSuffixName string, consumerSuffixTag string) (consumerTag string) {
-	return fmt.Sprintf("ENV_%s-EXCHANGE_%s-QUEUE_%s-CONSUMER_%s", Config.Env, exchangeName, queueSuffixName, consumerSuffixTag)
+func GetConsumerTag(exchangeName string, queueSuffixName string, consumerSuffixTag string) string {
+	if queueSuffixName == "" {
+		queueSuffixName = "master"
+	}
+	if consumerSuffixTag == "" {
+		consumerSuffixTag = uuid.New().String()
+	}
+	return fmt.Sprintf("%s.%s..%s.%s-consumer", Config.Env, exchangeName, queueSuffixName, consumerSuffixTag)
 }

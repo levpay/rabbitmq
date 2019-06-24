@@ -1,7 +1,6 @@
 package rabbitmq_test
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -18,9 +17,6 @@ func TestMain(m *testing.M) {
 }
 
 func testingEnv() {
-
-	fmt.Printf("Closing teste")
-
 	err := godotenv.Load(".env.testing")
 	if err != nil {
 		log.Fatal("Error loading .env.testing file")
@@ -31,7 +27,7 @@ func testingEnv() {
 	if debugS != "" {
 		debug, err := strconv.ParseBool(debugS)
 		if err != nil {
-			log.Errorln("Failed to convert DEBUG value", err)
+			log.Errorln("Failed to convert DEBUG value: ", err)
 			return
 		}
 
@@ -39,13 +35,18 @@ func testingEnv() {
 	}
 }
 
-func TestGetQueueFullName(t *testing.T) {
+func TestGetQueueFullNameWithReturn(t *testing.T) {
+	t.Run("Test GetQueueFullName method with success", func(t *testing.T) {
+		result := rabbitmq.GetQueueFullName("exchangeX", "rangeY", "ERROR")
+		expected := "testing.exchangeX.rangeY-queue:ERROR"
+		if expected != result {
+			t.Fatalf("Expect %s, got: %s", expected, result)
+		}
+	})
 
 	t.Run("Test GetQueueFullName method with success", func(t *testing.T) {
-
-		result := rabbitmq.GetQueueFullName("exchangeX", "rangeY")
-
-		expected := "ENV_testing-EXCHANGE_exchangeX-QUEUE_rangeY"
+		result := rabbitmq.GetQueueFullName("exchangeX", "rangeY", "")
+		expected := "testing.exchangeX.rangeY-queue"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}
@@ -53,12 +54,9 @@ func TestGetQueueFullName(t *testing.T) {
 }
 
 func TestGetExchangeFullName(t *testing.T) {
-
 	t.Run("Test GetExchangeFullName method with success", func(t *testing.T) {
-
-		result := rabbitmq.GetExchangeFullName("exchangeX")
-
-		expected := "ENV_testing-EXCHANGE_exchangeX"
+		result := rabbitmq.GetExchangeFullName("exchangeX", "WAIT_10000")
+		expected := "testing.exchangeX-exchange:WAIT_10000"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}
@@ -66,12 +64,9 @@ func TestGetExchangeFullName(t *testing.T) {
 }
 
 func TestGetConsumerTag(t *testing.T) {
-
 	t.Run("Test GetConsumerTag method with success", func(t *testing.T) {
-
-		result := rabbitmq.GetConsumerTag("exchangeX", "rangeY", "consumerZ")
-
-		expected := "ENV_testing-EXCHANGE_exchangeX-QUEUE_rangeY-CONSUMER_consumerZ"
+		result := rabbitmq.GetConsumerTag("exchangeX", "", "consumerZ")
+		expected := "testing.exchangeX..master.consumerZ-consumer"
 		if expected != result {
 			t.Fatalf("Expect %s, got: %s", expected, result)
 		}
