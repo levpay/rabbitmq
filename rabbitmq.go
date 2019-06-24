@@ -55,20 +55,21 @@ func loadConsumer() (err error) {
 
 // SimplePublisher adds a message in the exchange without options
 func SimplePublisher(exchangeName string, body []byte) (err error) {
-	return Publisher(exchangeName, "", body)
+	return Publisher(exchangeName, "", 0, 0, body)
 }
 
 // Publisher adds a message in the exchange
-func Publisher(exchangeName string, typeName string, body []byte) (err error) {
+func Publisher(exchangeName string, typeName string, delay int64, priority uint8, body []byte) (err error) {
 	err = loadPublisher()
 	if err != nil {
 		return
 	}
-
 	d := &publisher.Declare{
 		Exchange: exchangeName,
 		Type:     typeName,
+		Delay:    delay,
 		Body:     body,
+		Priority: priority,
 	}
 	return p.Publish(d)
 }
@@ -79,7 +80,6 @@ func PublisherWithDelay(exchangeName string, delay int64, body []byte) (err erro
 	if err != nil {
 		return
 	}
-
 	d := &publisher.Declare{
 		Exchange: exchangeName,
 		Delay:    delay,
@@ -94,7 +94,6 @@ func PublisherWithPriority(exchangeName string, delay int64, priority uint8, bod
 	if err != nil {
 		return
 	}
-
 	d := &publisher.Declare{
 		Exchange: exchangeName,
 		Delay:    delay,
@@ -110,7 +109,6 @@ func SimpleConsumer(exchangeName, typeName string, actionFunction func([]byte) e
 	if err != nil {
 		return
 	}
-
 	d := &consumer.Declare{
 		Exchange:       exchangeName,
 		Type:           typeName,
