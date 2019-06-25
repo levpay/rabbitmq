@@ -82,9 +82,8 @@ func (b *Base) WaitIfReconnecting() {
 	for {
 		if b.reconnecting {
 			time.Sleep(500 * time.Millisecond)
-			continue
+			break
 		}
-		return
 	}
 }
 
@@ -169,6 +168,7 @@ func (b *Base) CreateExchangeAndQueue(d ideclare) (err error) {
 
 	err = b.createQueueAndBinding(d)
 	if err != nil {
+		log.Errorln("Failed to bind the queue ", err)
 		return
 	}
 	log.Debugln("Declared exchange: ", d.GetExchangeFullName())
@@ -191,12 +191,7 @@ func (b *Base) createQueueAndBinding(d ideclare) (err error) {
 	bindingKey := fmt.Sprintf("%s-key", d.GetQueueFullName())
 	log.Debugln("Declared Queue (", d.GetQueueFullName(), " ", queue.Messages,
 		" messages, ", queue.Consumers, " consumers), binding to Exchange (key ", bindingKey, ")")
-	err = b.Channel.QueueBind(d.GetQueueFullName(), bindingKey, d.GetExchangeFullName(), false, nil)
-	if err != nil {
-		log.Errorln("Failed to bind the queue ", err)
-		return
-	}
-	return
+	return b.Channel.QueueBind(d.GetQueueFullName(), bindingKey, d.GetExchangeFullName(), false, nil)
 }
 
 func (b *Base) exchangeAlreadyCreated(d ideclare) bool {
