@@ -80,10 +80,10 @@ func (b *Base) connect() (err error) {
 //WaitIfReconnecting waits until reconnected with the server
 func (b *Base) WaitIfReconnecting() {
 	for {
-		if b.reconnecting {
-			time.Sleep(500 * time.Millisecond)
-			break
+		if !b.reconnecting {
+			return
 		}
+		time.Sleep(500 * time.Millisecond)
 	}
 }
 
