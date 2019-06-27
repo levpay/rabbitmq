@@ -76,31 +76,12 @@ func Publisher(exchangeName string, typeName string, delay int64, priority uint8
 
 // PublisherWithDelay adds a message in the waiting exchange
 func PublisherWithDelay(exchangeName string, delay int64, body []byte) (err error) {
-	err = loadPublisher()
-	if err != nil {
-		return
-	}
-	d := &publisher.Declare{
-		Exchange: exchangeName,
-		Delay:    delay,
-		Body:     body,
-	}
-	return p.Publish(d)
+	return Publisher(exchangeName, "", delay, 0, body)
 }
 
 // PublisherWithPriority adds a message in the waiting exchange and with priority
 func PublisherWithPriority(exchangeName string, delay int64, priority uint8, body []byte) (err error) {
-	err = loadPublisher()
-	if err != nil {
-		return
-	}
-	d := &publisher.Declare{
-		Exchange: exchangeName,
-		Delay:    delay,
-		Body:     body,
-		Priority: priority,
-	}
-	return p.Publish(d)
+	return Publisher(exchangeName, "", delay, priority, body)
 }
 
 // SimpleConsumer is a simple version of the Consumer that associates a function to receive messages from the queue
