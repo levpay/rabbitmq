@@ -10,6 +10,9 @@ import (
 	"github.com/streadway/amqp"
 )
 
+// MaxPriority is the maximum possible priority number in the queue
+const MaxPriority = 10
+
 type queuesLoaded struct {
 	sync.Mutex
 	m map[string]bool
@@ -180,7 +183,7 @@ func (b *Base) CreateExchangeAndQueue(d ideclare) (err error) {
 
 func (b *Base) createQueueAndBinding(d ideclare) (err error) {
 	args := d.GetQueueArgs()
-	args["x-max-priority"] = 10
+	args["x-max-priority"] = MaxPriority
 
 	queue, err := b.Channel.QueueDeclare(d.GetQueueFullName(), true, false, false, false, args)
 	if err != nil {

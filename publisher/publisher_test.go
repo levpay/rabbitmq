@@ -97,14 +97,25 @@ func TestDeclareGetArgs(t *testing.T) {
 }
 
 func TestDeclareGetType(t *testing.T) {
-	t.Run("Test Declare.getType = WAIT_1000", func(t *testing.T) {
+	t.Run("Test Declare.getType = PRIORITY_00:WAIT_1000", func(t *testing.T) {
 		m := &Declare{
 			Type:  "SUCCESS",
 			Delay: 1000,
 		}
 		m.Prepare()
-		assert.Equal(t, m.GetTypeFullName(), "SUCCESS:WAIT_1000")
+		assert.Equal(t, m.GetTypeFullName(), "SUCCESS:PRIORITY_00:WAIT_1000")
 	})
+
+	t.Run("Test Declare.getType = WAIT_1000 - maxPriority", func(t *testing.T) {
+		m := &Declare{
+			Type:     "SUCCESS",
+			Delay:    1000,
+			Priority: 11,
+		}
+		m.Prepare()
+		assert.Equal(t, m.GetTypeFullName(), "SUCCESS:PRIORITY_10:WAIT_1000")
+	})
+
 	t.Run("Test Declare.getType = SUCCESS", func(t *testing.T) {
 		m := &Declare{
 			Type: "SUCCESS",

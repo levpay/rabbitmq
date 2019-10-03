@@ -161,7 +161,13 @@ func (d *Declare) Prepare() {
 
 	d.typeFullName = d.Type
 	if d.wait {
-		d.typeFullName = fmt.Sprintf("%v:WAIT_%v", d.Type, d.Delay)
+
+		priority := d.Priority
+		if priority > base.MaxPriority {
+			priority = base.MaxPriority
+		}
+
+		d.typeFullName = fmt.Sprintf("%v:PRIORITY_%02d:WAIT_%v", d.Type, priority, d.Delay)
 	}
 
 	d.expiration = strconv.FormatInt(d.Delay, 10)
