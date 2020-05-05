@@ -34,7 +34,7 @@ func loadPublisher() (err error) {
 	return
 }
 
-func loadConsumer() (err error) {
+func loadConsumer(threads int) (err error) {
 	if c != nil {
 		return
 	}
@@ -48,7 +48,7 @@ func loadConsumer() (err error) {
 		return
 	}
 
-	c, err = consumer.New(50, 2)
+	c, err = consumer.New(threads, 2)
 
 	return
 }
@@ -86,7 +86,21 @@ func PublisherWithPriority(exchangeName string, delay int64, priority uint8, bod
 
 // SimpleConsumer is a simple version of the Consumer that associates a function to receive messages from the queue
 func SimpleConsumer(exchangeName, typeName string, actionFunction func([]byte) error) (err error) {
-	err = loadConsumer()
+	err = loadConsumer(50)
+	if err != nil {
+		return
+	}
+	d := &consumer.Declare{
+		Exchange:       exchangeName,
+		Type:           typeName,
+		ActionFunction: actionFunction,
+	}
+	return c.Consume(d)
+}
+
+// SimpleConsumerWithThreads is a simple version of the Consumer that associates a function to receive messages from the queue
+func SimpleConsumerWithThreads(threads int, exchangeName, typeName string, actionFunction func([]byte) error) (err error) {
+	err = loadConsumer(threads)
 	if err != nil {
 		return
 	}
