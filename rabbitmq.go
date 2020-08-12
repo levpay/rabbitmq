@@ -1,6 +1,7 @@
 package rabbitmq
 
 import (
+	"os"
 	"sync"
 
 	"github.com/levpay/rabbitmq/base"
@@ -10,12 +11,16 @@ import (
 
 var (
 	pM sync.Mutex
-	p  *publisher.Publisher
+	p  publisher.PublisherInterface
 	cM sync.Mutex
 	c  *consumer.Consumer
 )
 
 func loadPublisher() (err error) {
+	if os.Getenv("NUVEO_ENVIRONMENT") == "3" {
+		p, err = publisher.NewFakePublisher()
+		return
+	}
 	if p != nil {
 		return
 	}
@@ -28,9 +33,7 @@ func loadPublisher() (err error) {
 	if err != nil {
 		return
 	}
-
 	p, err = publisher.New()
-
 	return
 }
 
@@ -47,9 +50,7 @@ func loadConsumer(threads int) (err error) {
 	if err != nil {
 		return
 	}
-
 	c, err = consumer.New(threads, 2)
-
 	return
 }
 
