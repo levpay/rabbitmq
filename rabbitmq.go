@@ -7,6 +7,7 @@ import (
 	"github.com/levpay/rabbitmq/base"
 	"github.com/levpay/rabbitmq/consumer"
 	"github.com/levpay/rabbitmq/publisher"
+	"github.com/nuveo/log"
 )
 
 var (
@@ -17,6 +18,7 @@ var (
 )
 
 func loadPublisher() (err error) {
+	log.Debugln("NUVEO_ENVIRONMENT: ", os.Getenv("NUVEO_ENVIRONMENT"))
 	if os.Getenv("NUVEO_ENVIRONMENT") == "3" {
 		p, err = publisher.NewFakePublisher()
 		return
