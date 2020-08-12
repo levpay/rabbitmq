@@ -9,6 +9,13 @@ import (
 	"github.com/streadway/amqp"
 )
 
+type PublisherInterface interface {
+	PublishWithDelay(d *Declare, delay int64) (err error)
+	publishWithoutRetry(d *Declare) (err error)
+	Publish(d *Declare) (err error)
+	createExchangeAndQueueDLX(d *Declare) (err error)
+}
+
 // Publisher contains the datas of the publisher as connection and channel
 type Publisher struct {
 	base.Base
