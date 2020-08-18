@@ -99,7 +99,7 @@ func (c *Consumer) callingExternalFunc(d *Declare, i int) {
 			c.treatErrorToReconnect(err)
 			continue
 		}
-		log.Println("Consumer - Consumed")
+		log.Debugln("Consumer - Consumed")
 	}
 }
 
