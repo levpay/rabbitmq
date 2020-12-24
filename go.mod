@@ -1,6 +1,6 @@
 module github.com/levpay/rabbitmq
 
-go 1.12
+go 1.15
 
 require (
 	github.com/google/uuid v1.1.1
